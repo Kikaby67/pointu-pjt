@@ -55,7 +55,8 @@ Pointu-PJT/
 │   │   ├── commande_attaquer.cs # !attaquer → frapper à son tour
 │   │   └── arena_check.cs       # Timer ArenaCheck (transition/riposte/AFK)
 │   ├── Timer_Xp/
-│   │   └── Timer_XP_visionnage.cs
+│   │   ├── Timer_XP_visionnage.cs
+│   │   └── tracker_activite.cs      # Twitch Chat Message → met à jour derniereActivite
 │   └── Reward/
 │       ├── Jet de dé/           # 1d6_PV.cs, 1d4_CA.cs
 │       └── Bonus +2/            # +2_PV.cs, +2_CA.cs, +2_Attaque.cs
@@ -167,9 +168,12 @@ quete_chance_ecorce            ← % de drop morceau d'écorce (5)
 quete_cooldown_defaite_secondes ← cooldown après défaite (600 = 10 min)
 quete_cooldown_abandon_secondes ← cooldown après !abandon (300 = 5 min)
 timer_xp_gain / timer_regen_pv / timer_regen_mana ← timer 15 min (5 / 2 / 3)
+timer_activite_seuil_secondes (1800) ← inactivité max pour recevoir XP (30 min)
 
+rencontre_taux_ennemi (40)     ← % de chance de rencontre ennemie par check
+rencontre_taux_allie (30)      ← % de chance de rencontre alliée (30% = rien)
 rencontre_ennemis              ← CSV des ennemis de rencontre de quête
-rencontre_expire_secondes      ← délai avant fuite auto d'une rencontre (120)
+rencontre_expire_secondes      ← délai avant timeout auto d'une rencontre (120)
 
 — mini-boss (solo, en quête) —
 rencontre_mini_boss            ← CSV des mini-boss (Insecte-Bug,Corbeau-Daemon,Castor-Rootkit,Loup-Firewall)
@@ -315,12 +319,14 @@ Fichier : `Donnees/joueurs/{nomJoueur.ToLower()}.json`
   "enRencontre": false,
   "rencontreType": "",
   "rencontreExpire": 0,
+  "offreValeur": 0,
   "compagnonActif": "",
   "quetePauseDebut": 0,
   "queteTotalPause": 0,
   "queteCooldownFin": 0,
   "dernierCheckRencontre": 0,
   "reposCooldownFin": 0,
+  "derniereActivite": 0,
   "combatActuel": {
     "ennemiNom": "",
     "ennemiPVActuels": 0,
@@ -344,8 +350,10 @@ Fichier : `Donnees/joueurs/{nomJoueur.ToLower()}.json`
 > `protectionActive`, `tourCombat` sont **obsolètes** (laissés pour compat).
 >
 > Champs récents : `agilite` (posé à la création depuis la classe), `compagnonActif` (allié recruté, `""` si aucun),
-> `rencontreExpire` (timestamp d'expiration de la rencontre). Ajoutés aux anciens profils via `EnsureChamp` ; déjà
-> présents sur tous les profils actuels.
+> `rencontreType` (type de rencontre en attente : `"combat"` | `"marchand_potion"` | `"vieux_sage"` | `"bonus_ram"` | `"alcove_chene"` | `"marchand_classe"`),
+> `offreValeur` (valeur numérique stockée lors de la pose d'une offre alliée),
+> `derniereActivite` (timestamp du dernier message chat — utilisé par le timer XP).
+> `offreEnAttente` et `offreExpire` sont **supprimés** (remplacés par `rencontreType` + `rencontreExpire`).
 
 ---
 
@@ -609,16 +617,24 @@ Trigger : Command Triggered → !quete
 Parcourt tous les fichiers joueurs. Pour chaque joueur `enQuete == true` (ajoute au passage `rencontreExpire` /
 `compagnonActif` aux anciens profils via `EnsureChamp`) :
 
-**CAS 1** — `enRencontre == true` (rencontre en attente) :
-- Si `maintenant > rencontreExpire` → **fuite automatique** (le joueur a ignoré la rencontre) : quête reprend.
-- Sinon → on attend le choix du joueur. La résolution est faite par `!combat`/`!discuter`/`!fuir`, **plus** par le timer.
+**CAS 1** — `enRencontre == true` (rencontre en attente, toutes types) :
+- Si `maintenant > rencontreExpire` → **timeout auto** : quête reprend.
+  Message différencié : ennemi = "s'éloigne" / allié = "rencontre prend fin".
+- Sinon → on attend le choix du joueur (2 min).
+  - Rencontre ennemie (`rencontreType == "combat"`) : résolution par `!combat`/`!discuter`/`!fuir`.
+  - Rencontre alliée : résolution par `!accepter`/`!refuser`.
 
 **CAS 2** — Check rencontre tous les `quete_rencontre_intervalle_secondes` (180 s) :
-- `quete_chance_rencontre`% de chance, parmi 3 types : **Combat** / **Événement** / **Marchand**.
-- **Combat** : pose une rencontre en attente (ennemi tiré de `rencontre_ennemis`) + message 3 choix + `rencontreExpire`.
-  Si `niveau >= mini_boss_niveau_min` et jet `< mini_boss_chance` → ennemi tiré de `rencontre_mini_boss` (⚠️ MINI-BOSS).
-- **Marchand** : pose l'offre `marchand_soin` (soin via `!accepter`) **et** annonce la Potion (`!acheter`). **Plus de vente forcée**.
-- **Événement** : pool de 8 événements (bonus/malus instantanés, dont l'offre du Vieux Sage) — inchangé.
+Roll 0–99 contre `rencontre_taux_ennemi` (40) puis `rencontre_taux_allie` (30) — sinon rien.
+- **Combat (40%)** : ennemi de `rencontre_ennemis` + `rencontreExpire`. Si `niveau >= mini_boss_niveau_min`
+  et jet `< mini_boss_chance` → mini-boss de `rencontre_mini_boss`. Pose `enCombat=true`, `rencontreType="combat"`.
+- **Allié (30%)** : 5 types, quête mise en pause, `enCombat=false`, timeout 2 min.
+  - `marchand_potion` : achat Potion → `!accepter` / `!refuser`
+  - `vieux_sage` : offre XP → `!accepter` (double roll XP + risque de perte d'item) / `!refuser` (risque de combat)
+  - `bonus_ram` : bourse de RAM → `!accepter` / `!refuser`
+  - `alcove_chene` : mini-repos PV+Mana → `!accepter` / `!refuser`
+  - `marchand_classe` (**10% des alliés**, niv 5+) : change de classe via `!choisirclasse [nom]` / `!refuser`
+- **Rien (30%)** : mise à jour de `dernierCheckRencontre`, pas de message.
 
 **CAS 3** — Fin de quête : succès `(100 - quete_taux_echec)%`. Vide `compagnonActif`.
 - Succès artefact : `quete_chance_loot_artefact`% de loot 1 item de `loot_commun` (config_quetes) si sac < `max_sac`.
@@ -808,11 +824,18 @@ Trigger : Command Triggered → !accepter / !refuser
 Trigger : Channel Point Reward (un fichier par reward)
 ```
 
-### `Timer_XP_Visionnage.cs` — Timer 15 min
-Pour chaque joueur avec classe : +5 XP, vérifie montée de niveau.
+### `Timer_XP_Visionnage.cs` + `tracker_activite.cs` — Timer 15 min
+
+`tracker_activite.cs` est déclenché sur **Twitch Chat Message** (tout message, pas une commande).
+Il enregistre `derniereActivite = maintenant` dans le JSON du joueur à chaque fois qu'il écrit.
+
+`Timer_XP_Visionnage.cs` parcourt les joueurs avec classe et vérifie que `derniereActivite`
+est récent (`< timer_activite_seuil_secondes` = 30 min). Seuls les viewers actifs gagnent :
++5 XP, vérification montée de niveau.
 Régénération passive si `enCombat != true` : +2 PV (plafonné pvMax) + +3 Mana (plafonné manaMax).
 ```
 Trigger : Timed Action → Timer_XP_Visionnage (900s, repeat)
+Trigger : Twitch Chat Message → tracker_activite (tout message)
 ```
 
 ### Boss communautaire (arène) — `Streamerbot/Boss/`

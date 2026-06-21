@@ -1,14 +1,16 @@
 using System;
 using System.IO;
+
 public class CPHInline
 {
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
     private const string CONFIG_LEVEL    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_level.json";
     private const string CONFIG_ALLIES   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_allies.json";
+    private const string CONFIG_ITEMS    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_items.json";
 
     public bool Execute()
     {
-        string nomJoueur    = args["user"].ToString();
+        string nomJoueur     = args["user"].ToString();
         string cheminFichier = Path.Combine(DOSSIER_JOUEURS, nomJoueur.ToLower() + ".json");
 
         if (!File.Exists(cheminFichier))
@@ -17,53 +19,70 @@ public class CPHInline
             return true;
         }
 
-        string json           = File.ReadAllText(cheminFichier);
-        string offreEnAttente = LireValeurString(json, "offreEnAttente");
-        long   offreExpire    = long.Parse(LireValeur(json, "offreExpire"));
-        long   maintenant     = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        string json       = File.ReadAllText(cheminFichier);
+        long   maintenant = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-        if (offreEnAttente == "")
+        bool   enRencontre = LireValeur(json, "enRencontre") == "true";
+        string typeR       = LireValeur(json, "rencontreType");
+
+        // Uniquement pour les rencontres alliées (pas les combats)
+        if (!enRencontre || typeR == "combat" || typeR == "")
         {
-            CPH.SendMessage(nomJoueur + ", tu n'as aucune offre en attente !");
+            CPH.SendMessage(nomJoueur + ", tu n'as aucune offre alliée en attente !");
             return true;
         }
 
-        if (offreExpire > 0 && maintenant > offreExpire)
+        long expire = long.Parse(LireValeur(json, "rencontreExpire"));
+        if (expire > 0 && maintenant > expire)
         {
-            json = ModifierValeur(json, "offreEnAttente", "", true);
-            json = ModifierValeur(json, "offreValeur",    "0", false);
-            json = ModifierValeur(json, "offreExpire",    "0", false);
-            File.WriteAllText(cheminFichier, json);
-            CPH.SendMessage(nomJoueur + ", l'offre a expiré avant que tu puisses l'accepter !");
+            CPH.SendMessage(nomJoueur + ", cette offre a déjà expiré — le timer va remettre ta quête en route !");
             return true;
         }
 
-        int valeur = int.Parse(LireValeur(json, "offreValeur"));
+        bool enQuete = LireValeur(json, "enQuete") == "true";
+        int  valeur  = int.Parse(LireValeur(json, "offreValeur"));
+        string msgFinal = "";
 
-        if (offreEnAttente == "vieux_sage")
+        // === Handlers par type ===
+
+        if (typeR == "marchand_potion")
         {
-            string cfgA      = File.ReadAllText(CONFIG_ALLIES);
-            int    chanceXP  = int.Parse(LireValeur(cfgA, "vieux_sage_chance_xp"));
+            int    prixPotion = valeur; // prix stocké à la création de l'offre (= ce qui a été affiché)
+            int    ramJoueur  = int.Parse(LireValeur(json, "ram"));
+            string inv        = LireValeurString(json, "inventaire");
+            int    nbItems    = inv == "" ? 0 : inv.Split(',').Length;
+            int    maxSac     = 8;
+
+            if (ramJoueur < prixPotion)
+            {
+                CPH.SendMessage(nomJoueur + ", tu n'as pas assez de RAM (" + ramJoueur + "/" + prixPotion + ") pour acheter la Potion. Tape !refuser pour décliner.");
+                return true;
+            }
+            if (nbItems >= maxSac)
+            {
+                CPH.SendMessage(nomJoueur + ", ton sac est plein ! Tape !refuser pour décliner.");
+                return true;
+            }
+            json     = AjouterValeur(json, "ram", -prixPotion);
+            string nouvInv = inv == "" ? "Potion" : inv + ",Potion";
+            json     = ModifierValeurString(json, "inventaire", nouvInv);
+            msgFinal = nomJoueur + ", tu achètes une Potion pour " + prixPotion + " RAM — elle est dans ton sac !";
+        }
+        else if (typeR == "vieux_sage")
+        {
+            string cfgA       = File.ReadAllText(CONFIG_ALLIES);
+            int    chanceXP   = int.Parse(LireValeur(cfgA, "vieux_sage_chance_xp"));
             int    chanceItem = int.Parse(LireValeur(cfgA, "vieux_sage_chance_perte_item"));
-            Random rng       = new Random();
-            bool   gagne     = rng.Next(100) < chanceXP;
-            bool   perd      = rng.Next(100) < chanceItem;
+            Random rng        = new Random();
+            bool   gagne      = rng.Next(100) < chanceXP;
+            bool   perd       = rng.Next(100) < chanceItem;
 
-            json = ModifierValeur(json, "offreEnAttente", "", true);
-            json = ModifierValeur(json, "offreValeur",    "0", false);
-            json = ModifierValeur(json, "offreExpire",    "0", false);
-
-            string msgFinal = "";
-
-            // XP si gagné
             if (gagne)
             {
                 json     = AjouterValeur(json, "experience", valeur);
                 json     = VerifierMonteeNiveau(json, nomJoueur);
-                msgFinal += nomJoueur + ", tu acceptes le marché du Vieux Sage. Il te transmet son savoir ! +" + valeur + " XP !";
+                msgFinal  = nomJoueur + ", tu acceptes le marché du Vieux Sage — il te transmet son savoir ! +" + valeur + " XP !";
             }
-
-            // Perte item si perdu
             if (perd)
             {
                 string   inv   = LireValeurString(json, "inventaire");
@@ -71,60 +90,74 @@ public class CPHInline
                 if (items.Length > 0)
                 {
                     int    idx      = rng.Next(items.Length);
-                    string itemPerdu = items[idx].Trim();
+                    string perdu    = items[idx].Trim();
                     string nouvInv  = "";
                     bool   retire   = false;
                     foreach (string it in items)
                     {
-                        if (!retire && it.Trim() == itemPerdu) { retire = true; continue; }
+                        if (!retire && it.Trim() == perdu) { retire = true; continue; }
                         if (nouvInv != "") nouvInv += ",";
                         nouvInv += it.Trim();
                     }
                     json     = ModifierValeurString(json, "inventaire", nouvInv);
-                    // Si XP déjà gagné → commence par "Mais" pour enchaîner
-                    // Sinon → commence par le nom du joueur (premier message)
                     msgFinal += (msgFinal != "" ? " Mais" : nomJoueur + ", tu acceptes le marché —")
-                              + " le Vieux Sage s'empare de " + itemPerdu + " en guise de paiement...";
+                              + " le Vieux Sage s'empare de " + perdu + " en guise de paiement...";
                 }
             }
-
-            // Rien
             if (!gagne && !perd)
                 msgFinal = nomJoueur + ", tu acceptes le marché — le Vieux Sage sourit et s'éclipse sans rien donner ni prendre...";
-
-            File.WriteAllText(cheminFichier, json);
-            CPH.SendMessage(msgFinal);
         }
-        
-        else if (offreEnAttente == "marchand_soin")
+        else if (typeR == "bonus_ram")
         {
-            int pvActuels = int.Parse(LireValeur(json, "pvActuels"));
-            int pvMax     = int.Parse(LireValeur(json, "pvMax"));
-            int soin      = Math.Min(valeur, pvMax - pvActuels);
-            json = ModifierValeur(json, "offreEnAttente", "", true);
-            json = ModifierValeur(json, "offreValeur",    "0", false);
-            json = ModifierValeur(json, "offreExpire",    "0", false);
-            if (soin > 0)
-            {
-                json = AjouterValeur(json, "pvActuels", soin);
-                File.WriteAllText(cheminFichier, json);
-                CPH.SendMessage(nomJoueur + ", le marchand te soigne ! +" + soin + " PV → " + (pvActuels + soin) + "/" + pvMax + " PV !");
-            }
-            else
-            {
-                File.WriteAllText(cheminFichier, json);
-                CPH.SendMessage(nomJoueur + ", tu acceptes les soins... mais tu as déjà tous tes PV !");
-            }
+            json     = AjouterValeur(json, "ram", valeur);
+            msgFinal = nomJoueur + ", tu ramasses la bourse : +" + valeur + " RAM !";
+        }
+        else if (typeR == "alcove_chene")
+        {
+            int pvActuels   = int.Parse(LireValeur(json, "pvActuels"));
+            int pvMax       = int.Parse(LireValeur(json, "pvMax"));
+            int manaActuels = int.Parse(LireValeur(json, "manaActuels"));
+            int manaMax     = int.Parse(LireValeur(json, "manaMax"));
+            int pvSoin      = pvMax - pvActuels;
+            int manaSoin    = manaMax - manaActuels;
+            json     = ModifierValeur(json, "pvActuels",   pvMax.ToString(),   false);
+            if (manaMax > 0)
+                json = ModifierValeur(json, "manaActuels", manaMax.ToString(), false);
+            string partMana = manaMax > 0 ? " | Mana : " + manaActuels + " → " + manaMax : "";
+            msgFinal = nomJoueur + ", tu te reposes dans l'alcôve du chêne-serveur. PV : " + pvActuels + " → " + pvMax + partMana + " — Entièrement restauré !";
+        }
+        else if (typeR == "marchand_classe")
+        {
+            // Rappel des classes disponibles — la rencontre reste active, le joueur tape !choisirclasse
+            string classeActuelle = LireValeur(json, "classe");
+            CPH.SendMessage(nomJoueur + ", le Marchand de Classe te propose de changer ! Ta classe actuelle : " + classeActuelle + ". Tape !choisirclasse [nom] pour changer | !refuser pour décliner. Classes : Hexadécimeur · Cryptolame · Hackmancien · Firewaller · Algorythmancien");
+            return true; // rencontre maintenue — elle sera résolue par !choisirclasse ou !refuser
+        }
+        else
+        {
+            msgFinal = nomJoueur + ", offre acceptée.";
         }
 
+        // === Résoudre la rencontre et reprendre la quête ===
+        long pauseDebut = long.Parse(LireValeur(json, "quetePauseDebut"));
+        long totalPause = long.Parse(LireValeur(json, "queteTotalPause"));
+        if (pauseDebut > 0)
+            json = ModifierValeur(json, "queteTotalPause", (totalPause + (maintenant - pauseDebut)).ToString(), false);
+        json = ModifierValeur(json, "enRencontre",     "false", false);
+        json = ModifierValeur(json, "rencontreType",   "",      true);
+        json = ModifierValeur(json, "rencontreExpire", "0",     false);
+        json = ModifierValeur(json, "quetePauseDebut", "0",     false);
+
+        File.WriteAllText(cheminFichier, json);
+        CPH.SendMessage(msgFinal + (enQuete ? " Ta quête reprend !" : ""));
         return true;
     }
 
     private string VerifierMonteeNiveau(string json, string nomJoueur)
     {
         int niveauActuel  = int.Parse(LireValeur(json, "niveau"));
-        int nouvelXP      = int.Parse(LireValeur(json, "experience"));
-        int nouveauNiveau = CalculerNiveau(nouvelXP);
+        int xp            = int.Parse(LireValeur(json, "experience"));
+        int nouveauNiveau = CalculerNiveau(xp);
         if (nouveauNiveau > niveauActuel)
         {
             json = ModifierValeur(json, "niveau", nouveauNiveau.ToString(), false);
@@ -167,22 +200,11 @@ public class CPHInline
     private string LireValeur(string json, string cle)
     {
         string marqueur = "\"" + cle + "\": ";
-        int posDebut = json.IndexOf(marqueur);
-        if (posDebut == -1) return "0";
-        posDebut += marqueur.Length;
-        int posFin = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
-        return json.Substring(posDebut, posFin - posDebut).Trim().Trim('"');
-    }
-
-    private string ModifierValeurString(string json, string cle, string val)
-    {
-        string marqueur = "\"" + cle + "\": \"";
         int posDebut    = json.IndexOf(marqueur);
-        if (posDebut == -1) return json;
+        if (posDebut == -1) return "0";
         posDebut       += marqueur.Length;
-        int posFin      = json.IndexOf("\"", posDebut);
-        if (posFin == -1) return json;
-        return json.Substring(0, posDebut) + val + json.Substring(posFin);
+        int posFin      = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
+        return json.Substring(posDebut, posFin - posDebut).Trim().Trim('"');
     }
 
     private string LireValeurString(string json, string cle)
@@ -196,27 +218,38 @@ public class CPHInline
         return json.Substring(posDebut, posFin - posDebut);
     }
 
-    private string AjouterValeur(string json, string cle, int montant)
-    {
-        string marqueur = "\"" + cle + "\": ";
-        int posDebut = json.IndexOf(marqueur);
-        if (posDebut == -1) return json;
-        posDebut += marqueur.Length;
-        int posFin = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
-        string ancienneStr = json.Substring(posDebut, posFin - posDebut).Trim().Trim('"');
-        int ancienne = int.TryParse(ancienneStr, out int v) ? v : 0;
-        return json.Substring(0, posDebut) + (ancienne + montant).ToString() + json.Substring(posDebut + (posFin - posDebut));
-    }
-
     private string ModifierValeur(string json, string cle, string val, bool estTexte)
     {
         string marqueur = "\"" + cle + "\": ";
-        int posDebut = json.IndexOf(marqueur);
+        int posDebut    = json.IndexOf(marqueur);
         if (posDebut == -1) return json;
-        posDebut += marqueur.Length;
-        int posFin = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
+        posDebut       += marqueur.Length;
+        int posFin      = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
         string ancienne = json.Substring(posDebut, posFin - posDebut);
         string nouvelle = estTexte ? "\"" + val + "\"" : val;
         return json.Substring(0, posDebut) + nouvelle + json.Substring(posDebut + ancienne.Length);
+    }
+
+    private string ModifierValeurString(string json, string cle, string val)
+    {
+        string marqueur = "\"" + cle + "\": \"";
+        int posDebut    = json.IndexOf(marqueur);
+        if (posDebut == -1) return json;
+        posDebut       += marqueur.Length;
+        int posFin      = json.IndexOf("\"", posDebut);
+        if (posFin == -1) return json;
+        return json.Substring(0, posDebut) + val + json.Substring(posFin);
+    }
+
+    private string AjouterValeur(string json, string cle, int montant)
+    {
+        string marqueur = "\"" + cle + "\": ";
+        int posDebut    = json.IndexOf(marqueur);
+        if (posDebut == -1) return json;
+        posDebut       += marqueur.Length;
+        int posFin      = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
+        string ancienneStr = json.Substring(posDebut, posFin - posDebut).Trim().Trim('"');
+        int ancienne = int.TryParse(ancienneStr, out int v) ? v : 0;
+        return json.Substring(0, posDebut) + (ancienne + montant).ToString() + json.Substring(posDebut + (posFin - posDebut));
     }
 }

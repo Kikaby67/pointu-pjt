@@ -11,7 +11,7 @@
   "combat_fuite_seuil_cryptolame": 8,
 
   "quete_taux_echec": 20,
-  "quete_chance_rencontre": 50,
+  "quete_chance_rencontre": 30,
   "quete_chance_loot_artefact": 60,
   "quete_chance_ecorce": 5,
   "loot_chance_rare": 20,
@@ -23,6 +23,7 @@
   "timer_xp_gain": 5,
   "timer_regen_pv": 2,
   "timer_regen_mana": 3,
+  "timer_activite_seuil_secondes": 1800,
 
   "ennemi_ca_defaut": 12,
   "ennemi_degats_defaut": 6,
@@ -33,6 +34,8 @@
   "attaque_des_defaut": 1,
   "soin_max_defaut": 4,
 
+  "rencontre_taux_ennemi": 40,
+  "rencontre_taux_allie": 30,
   "rencontre_expire_secondes": 120,
   "quete_rencontre_intervalle_secondes": 180,
   "rencontre_ennemis": "Martre-Trojan,Sentinelle du Castor,Ombre de la mémoire,Drone-racine,Parasite de données,Sanglier-Crash,Taupe-Malware",

@@ -9,10 +9,13 @@ public class CPHInline
 
     public bool Execute()
     {
-        string cfgG   = File.ReadAllText(CONFIG_GLOBAL);
-        int xpGain    = int.Parse(LireValeur(cfgG, "timer_xp_gain"));
-        int regenPV   = int.Parse(LireValeur(cfgG, "timer_regen_pv"));
-        int regenMana = int.Parse(LireValeur(cfgG, "timer_regen_mana"));
+        string cfgG    = File.ReadAllText(CONFIG_GLOBAL);
+        int xpGain     = int.Parse(LireValeur(cfgG, "timer_xp_gain"));
+        int regenPV    = int.Parse(LireValeur(cfgG, "timer_regen_pv"));
+        int regenMana  = int.Parse(LireValeur(cfgG, "timer_regen_mana"));
+        long seuil     = long.Parse(LireValeur(cfgG, "timer_activite_seuil_secondes"));
+
+        long maintenant = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         string[] fichiers = Directory.GetFiles(DOSSIER_JOUEURS, "*.json");
 
@@ -21,6 +24,13 @@ public class CPHInline
             string json = File.ReadAllText(cheminFichier);
 
             if (LireValeur(json, "classeChoisie") != "true") continue;
+
+            // Vérifie que le joueur a été actif dans le stream récemment (tracker_activite.cs)
+            json = EnsureChamp(json, "derniereActivite", "0", false);
+            long derniereActivite = long.Parse(LireValeur(json, "derniereActivite"));
+            if (derniereActivite == 0 || (maintenant - derniereActivite) > seuil) continue;
+
+            string nomJoueur = LireValeur(json, "nomJoueur");
 
             int xpActuel     = int.Parse(LireValeur(json, "experience"));
             int niveauActuel = int.Parse(LireValeur(json, "niveau"));
@@ -34,7 +44,6 @@ public class CPHInline
             {
                 json = ModifierValeur(json, "niveau", nouveauNiveau.ToString(), false);
                 json = AppliquerBonusNiveau(json, nouveauNiveau);
-                string nomJoueur = LireValeur(json, "nomJoueur");
                 CPH.SendMessage(MessageNiveau(nomJoueur, nouveauNiveau));
             }
 
@@ -93,6 +102,14 @@ public class CPHInline
         string cfg   = File.ReadAllText(CONFIG_LEVEL);
         string bonus = LireValeur(cfg, "niveau_" + niveau + "_message");
         return "🎉 " + nomJoueur + " passe au niveau " + niveau + " ! " + bonus;
+    }
+
+    private string EnsureChamp(string json, string cle, string valeurDefaut, bool estTexte)
+    {
+        if (json.Contains("\"" + cle + "\"")) return json;
+        int    pos = json.LastIndexOf('}');
+        string val = estTexte ? "\"" + valeurDefaut + "\"" : valeurDefaut;
+        return json.Substring(0, pos) + ",\n  \"" + cle + "\": " + val + "\n}";
     }
 
     private string AjouterValeur(string json, string cle, int montant)

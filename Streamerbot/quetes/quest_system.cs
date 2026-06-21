@@ -49,7 +49,7 @@ public class CPHInline
         if (LireValeur(json, "enCombat") == "true")
         {
             string ennemiEnCours = LireValeur(json, "ennemiNom");
-            CPH.SendMessage(nomJoueur + ", tu es face à " + ennemiEnCours + " ! Tape !combat pour te battre, !fuir pour lui échapper ou !discuter afin de tenter ta chance.");
+            CPH.SendMessage(nomJoueur + ", tu es face à " + ennemiEnCours + " ! Tape !combat pour te battre, !discuter pour parlementer ou !fuir pour t'échapper.");
             return true;
         }
 
@@ -66,8 +66,16 @@ public class CPHInline
         {
             if (LireValeur(json, "enRencontre") == "true")
             {
-                string ennemNom = LireValeur(json, "ennemiNom");
-                CPH.SendMessage(nomJoueur + ", tu es en pleine rencontre contre " + ennemNom + " ! Tape !combat pour te battre, !fuir pour lui échapper ou !discuter afin de tenter ta chance.");
+                string typeR = LireValeur(json, "rencontreType");
+                if (typeR == "combat")
+                {
+                    string ennemNom = LireValeur(json, "ennemiNom");
+                    CPH.SendMessage(nomJoueur + ", tu es face à " + ennemNom + " ! Tape !combat pour te battre, !discuter pour parlementer ou !fuir pour t'échapper.");
+                }
+                else
+                {
+                    CPH.SendMessage(nomJoueur + ", tu as une rencontre en attente ! Tape !accepter ou !refuser pour y répondre.");
+                }
                 return true;
             }
 

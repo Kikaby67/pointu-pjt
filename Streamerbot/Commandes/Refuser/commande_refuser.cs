@@ -18,75 +18,88 @@ public class CPHInline
             return true;
         }
 
-        string json           = File.ReadAllText(cheminFichier);
-        string offreEnAttente = LireValeurString(json, "offreEnAttente");
+        string json       = File.ReadAllText(cheminFichier);
+        long   maintenant = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-        if (offreEnAttente == "")
+        bool   enRencontre = LireValeur(json, "enRencontre") == "true";
+        string typeR       = LireValeur(json, "rencontreType");
+
+        // Uniquement pour les offres alliées
+        if (!enRencontre || typeR == "combat" || typeR == "")
         {
-            CPH.SendMessage(nomJoueur + ", tu n'as aucune offre en attente !");
+            CPH.SendMessage(nomJoueur + ", tu n'as aucune offre à refuser ! Pour un combat, utilise !combat, !discuter ou !fuir.");
             return true;
         }
 
-        // Nettoyer l'offre (commun à tous les cas)
-        json = ModifierValeur(json, "offreEnAttente", "", true);
-        json = ModifierValeur(json, "offreValeur",    "0", false);
-        json = ModifierValeur(json, "offreExpire",    "0", false);
-
-        if (offreEnAttente == "vieux_sage")
+        long expire = long.Parse(LireValeur(json, "rencontreExpire"));
+        if (expire > 0 && maintenant > expire)
         {
-            string cfgA        = File.ReadAllText(CONFIG_ALLIES);
+            CPH.SendMessage(nomJoueur + ", cette offre a déjà expiré — le timer va remettre ta quête en route !");
+            return true;
+        }
+
+        bool enQuete = LireValeur(json, "enQuete") == "true";
+
+        // === Vieux Sage : risque de combat ===
+        if (typeR == "vieux_sage")
+        {
+            string cfgA         = File.ReadAllText(CONFIG_ALLIES);
             int    chanceCombat = int.Parse(LireValeur(cfgA, "vieux_sage_chance_combat"));
-            Random rng         = new Random();
+            Random rng          = new Random();
 
-            // Un seul roll : soit combat, soit le sage disparaît
-            bool combat = rng.Next(100) < chanceCombat;
-
-            if (combat)
+            if (rng.Next(100) < chanceCombat)
             {
-                // Pose une rencontre à choix unique (!combat / !discuter / !fuir)
-                long maintenant = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                int  expireSecs = int.Parse(LireValeur(File.ReadAllText(CONFIG_GLOBAL), "rencontre_expire_secondes"));
+                // Le sage attaque → transformer en rencontre combat (sans changer quetePauseDebut)
+                string cfgG     = File.ReadAllText(CONFIG_GLOBAL);
+                long   expSecs  = long.Parse(LireValeur(cfgG, "rencontre_expire_secondes"));
 
-                json = EnsureChamp(json, "rencontreExpire", "0", false);
-                if (LireValeur(json, "enQuete") == "true")
-                    json = ModifierValeur(json, "quetePauseDebut", maintenant.ToString(), false);  // pause quête
-
-                json = ModifierValeur(json, "enRencontre",     "true",                          false);
-                json = ModifierValeur(json, "rencontreType",   "combat",                        true);
-                json = ModifierValeur(json, "enCombat",        "true",                          false);
-                json = ModifierValeur(json, "ennemiNom",       "Vieux-Sage",                    true);
-                json = ModifierValeur(json, "rencontreExpire", (maintenant + expireSecs).ToString(), false);
+                json = ModifierValeur(json, "rencontreType",   "combat",                            true);
+                json = ModifierValeur(json, "enCombat",        "true",                              false);
+                json = ModifierValeur(json, "ennemiNom",       "Vieux-Sage",                        true);
+                json = ModifierValeur(json, "rencontreExpire", (maintenant + expSecs).ToString(),   false);
 
                 File.WriteAllText(cheminFichier, json);
-                CPH.SendMessage(nomJoueur + ", tu refuses le marché — le Vieux Sage se lève, les yeux brillants de colère ! Tape !combat pour te battre, !fuir pour lui échapper ou !discuter afin de tenter ta chance.");
+                CPH.SendMessage(nomJoueur + ", tu refuses le marché — le Vieux Sage se lève, furieux ! Tape !combat pour te battre, !discuter afin de t'en sortir ou !fuir pour t'échapper. (" + (expSecs / 60) + " min)");
+                return true;
             }
             else
             {
-                // Le sage disparaît, rien ne se passe
-                File.WriteAllText(cheminFichier, json);
-                CPH.SendMessage(nomJoueur + ", tu refuses le marché — le Vieux Sage profite de ton inattention pour disparaître sans laisser de trace...");
+                // Le sage disparaît paisiblement
+                ResumeQuete(ref json, maintenant, enQuete, cheminFichier);
+                CPH.SendMessage(nomJoueur + ", tu refuses le marché — le Vieux Sage profite de ton inattention pour disparaître sans laisser de trace..." + (enQuete ? " Ta quête reprend." : ""));
+                return true;
             }
         }
-        else if (offreEnAttente == "marchand_soin")
-        {
-            File.WriteAllText(cheminFichier, json);
-            CPH.SendMessage(nomJoueur + ", tu refuses les soins du marchand. Il hausse les épaules et repart sur la route...");
-        }
-        else
-        {
-            File.WriteAllText(cheminFichier, json);
-            CPH.SendMessage(nomJoueur + ", offre refusée.");
-        }
 
+        // === Autres types alliés : simple refus ===
+        string msgRefus = "";
+        if (typeR == "marchand_potion")
+            msgRefus = nomJoueur + ", tu déclinas la Potion. Le marchand hausse les épaules et repart.";
+        else if (typeR == "bonus_ram")
+            msgRefus = nomJoueur + ", tu ignores la bourse et continues ta route.";
+        else if (typeR == "alcove_chene")
+            msgRefus = nomJoueur + ", tu passes devant l'alcôve sans t'arrêter.";
+        else if (typeR == "marchand_classe")
+            msgRefus = nomJoueur + ", tu déclinas l'offre du marchand.";
+        else
+            msgRefus = nomJoueur + ", offre refusée.";
+
+        ResumeQuete(ref json, maintenant, enQuete, cheminFichier);
+        CPH.SendMessage(msgRefus + (enQuete ? " Ta quête reprend." : ""));
         return true;
     }
 
-    private string EnsureChamp(string json, string cle, string valeurDefaut, bool estTexte)
+    private void ResumeQuete(ref string json, long maintenant, bool enQuete, string chemin)
     {
-        if (json.Contains("\"" + cle + "\"")) return json;
-        int    pos = json.LastIndexOf('}');
-        string val = estTexte ? "\"" + valeurDefaut + "\"" : valeurDefaut;
-        return json.Substring(0, pos) + ",\n  \"" + cle + "\": " + val + "\n}";
+        long pauseDebut = long.Parse(LireValeur(json, "quetePauseDebut"));
+        long totalPause = long.Parse(LireValeur(json, "queteTotalPause"));
+        if (pauseDebut > 0)
+            json = ModifierValeur(json, "queteTotalPause", (totalPause + (maintenant - pauseDebut)).ToString(), false);
+        json = ModifierValeur(json, "enRencontre",     "false", false);
+        json = ModifierValeur(json, "rencontreType",   "",      true);
+        json = ModifierValeur(json, "rencontreExpire", "0",     false);
+        json = ModifierValeur(json, "quetePauseDebut", "0",     false);
+        File.WriteAllText(chemin, json);
     }
 
     private string LireValeur(string json, string cle)
@@ -97,17 +110,6 @@ public class CPHInline
         posDebut       += marqueur.Length;
         int posFin      = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
         return json.Substring(posDebut, posFin - posDebut).Trim().Trim('"');
-    }
-
-    private string LireValeurString(string json, string cle)
-    {
-        string marqueur = "\"" + cle + "\": \"";
-        int posDebut    = json.IndexOf(marqueur);
-        if (posDebut == -1) return "";
-        posDebut       += marqueur.Length;
-        int posFin      = json.IndexOf("\"", posDebut);
-        if (posFin == -1) return "";
-        return json.Substring(posDebut, posFin - posDebut);
     }
 
     private string ModifierValeur(string json, string cle, string val, bool estTexte)
