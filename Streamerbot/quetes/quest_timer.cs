@@ -30,6 +30,7 @@ public class CPHInline
         int miniBossNivMin       = int.Parse(LireValeur(cfgG, "mini_boss_niveau_min"));
         int miniBossChance       = int.Parse(LireValeur(cfgG, "mini_boss_chance"));
 
+        bool auMoinsUneActive = false;
         foreach (string chemin in fichiers)
         {
             string json = File.ReadAllText(chemin);
@@ -64,7 +65,7 @@ public class CPHInline
                     else
                         CPH.SendMessage(nomJoueur + ", la rencontre prend fin — tu n'as pas répondu à temps. Ta quête reprend !");
                 }
-                continue; // attendre le choix du joueur
+                auMoinsUneActive = true; continue; // attendre le choix du joueur
             }
 
             // === CAS 2 : check rencontre toutes les N secondes ===
@@ -160,11 +161,10 @@ public class CPHInline
                 {
                     // Pas de rencontre (30%) — sauvegarder le nouveau dernierCheck
                     File.WriteAllText(chemin, json);
-                    json = File.ReadAllText(chemin);
                 }
             }
 
-            if (encounterLancee) continue;
+            if (encounterLancee) { auMoinsUneActive = true; continue; }
 
             // === CAS 3 : vérifier si la quête est terminée (en soustrayant les pauses) ===
             string queteId = LireValeur(json, "queteId");
@@ -174,7 +174,7 @@ public class CPHInline
             long secondesEcoulees = (maintenant - debutTimestamp) - totalPauseFin;
             long secondesRequises = ticksRequis * 5 * 60L;
 
-            if (secondesEcoulees < secondesRequises) continue;
+            if (secondesEcoulees < secondesRequises) { auMoinsUneActive = true; continue; }
 
             // Résoudre la quête
             string[] data = GetQueteData(queteId);
@@ -265,13 +265,7 @@ public class CPHInline
             }
         }
 
-        // Désactiver le timer si plus aucune quête active
-        bool encoreActive = false;
-        foreach (string chemin in fichiers)
-        {
-            if (LireValeur(File.ReadAllText(chemin), "enQuete") == "true") { encoreActive = true; break; }
-        }
-        if (!encoreActive) CPH.DisableTimer("QuestCheck");
+        if (!auMoinsUneActive) CPH.DisableTimer("QuestCheck");
 
         return true;
     }

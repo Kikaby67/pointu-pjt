@@ -70,9 +70,8 @@ public class CPHInline
             "  \"dernierCheckRencontre\": 0,\n" +
             "  \"reposCooldownFin\": 0,\n"      +
             "  \"queteEventsUsed\": 0,\n"       +
-            "  \"offreEnAttente\": \"\",\n"     +
             "  \"offreValeur\": 0,\n"           +
-            "  \"offreExpire\": 0,\n"           +
+            "  \"derniereActivite\": 0,\n"      +
 
             // État du combat en cours
             // Mis à jour à chaque tour de combat
@@ -104,10 +103,10 @@ public class CPHInline
 
         // Message de bienvenue dans le chat Twitch
       
-        CPH.SendMessage(nomJoueur + " Parfait tu es maintenant un Aventurier de l'Antre ! " +
-            "Ton fragment de Carapace est prêt. Tu peux maintenant choisir ta voie : " +
-            "Tape !choisirclasse + (Hexadécimeur / Cryptolame / Hackmancien / Firewaller / Algorythmancien)" +
-            "Tu peux ajouter ! avant pour en savoir plus sur chaque classe.");
+        CPH.SendMessage(nomJoueur + ", parfait ! Tu es maintenant un Aventurier de l'Antre ! " +
+            "Ton fragment de Carapace est prêt. Choisis ta voie : " +
+            "!choisirclasse (Hexadécimeur / Cryptolame / Hackmancien / Firewaller / Algorythmancien). " +
+            "Tape !infoclass [nom] pour en savoir plus sur chaque classe.");
 
         return true;
     }

@@ -29,7 +29,7 @@ public class CPHInline
 		string nomStat = "CA";
 
         File.WriteAllText(cheminFichier, json);
-        CPH.SendMessage("Bravo !" + nomJoueur + "tu as gagner +2 dans " + nomStat + " !");
+        CPH.SendMessage("Bravo, " + nomJoueur + " ! Tu as gagné +2 en " + nomStat + " !");
         return true;
     }
 

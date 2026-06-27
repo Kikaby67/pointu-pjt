@@ -157,13 +157,14 @@ public class CPHInline
         int total = degatsMax * n;
 
         // CA effective de chaque joueur + poids inverse
+        string cfgItems = File.ReadAllText(CONFIG_ITEMS);
         double[] poids = new double[n];
         int[] caEff = new int[n];
         double sommePoids = 0;
         for (int i = 0; i < n; i++)
         {
             string pj = File.ReadAllText(Path.Combine(DOSSIER_JOUEURS, ordreArr[i] + ".json"));
-            int ca = int.Parse(LireValeur(pj, "classeArmure")) + GetBonusItems(pj, "caBonus");
+            int ca = int.Parse(LireValeur(pj, "classeArmure")) + GetBonusItems(pj, "caBonus", cfgItems);
             if (ca < 1) ca = 1;
             caEff[i] = ca;
             poids[i] = 1.0 / ca;       // CA haute → poids faible → moins de dégâts
@@ -231,9 +232,8 @@ public class CPHInline
         return etat;
     }
 
-    private int GetBonusItems(string json, string stat)
+    private int GetBonusItems(string json, string stat, string cfgItems)
     {
-        string   cfgItems = File.ReadAllText(CONFIG_ITEMS);
         string[] slots    = { "armeEquipee", "armureEquipee", "accessoireEquipe" };
         int total = 0;
         foreach (string slot in slots)

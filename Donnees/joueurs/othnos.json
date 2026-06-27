@@ -1,8 +1,8 @@
 {
   "nomJoueur": "othnos",
-  "ram": 146,
+  "ram": 154,
   "niveau": 4,
-  "experience": 3661,
+  "experience": 3791,
   "classeChoisie": true,
   "classe": "Hackmancien",
   "sousClasseChoisie": false,
@@ -17,18 +17,18 @@
   "charisme": 10,
   "enCombat": false,
   "enQuete": false,
-  "queteId": "entretien_03",
+  "queteId": "artefact_02",
   "queteTicksRestants": 0,
-  "queteDernierTick": 1781452997,
-  "queteTotalPause": 121,
+  "queteDernierTick": 1782071787,
+  "queteTotalPause": 436,
   "quetePauseDebut": 0,
   "queteCooldownFin": 0,
   "enRencontre": false,
   "rencontreType": "",
-  "dernierCheckRencontre": 1781454454,
+  "dernierCheckRencontre": 1782073607,
   "reposCooldownFin": 1779740240,
   "queteEventsUsed": 0,
-  "offreValeur": 0,
+  "offreValeur": 5,
   "combatActuel": {
     "ennemiNom": "Taupe-Malware",
     "ennemiPVActuels": 0,
@@ -36,16 +36,18 @@
     "protectionActive": false,
     "tourCombat": 18
   },
-  "inventaire": "Potion,Potion",
+  "inventaire": "Potion",
   "armeEquipee": "Sceptre-de-L'Antre",
   "armureEquipee": "Cotte-Réseau",
   "accessoireEquipe": "",
   "statistiques": {
     "combatsGagnes": 5,
-    "combatsPerdus": 3,
-    "quetesTerminees": 9
+    "combatsPerdus": 4,
+    "quetesTerminees": 10
   },
   "agilite": 10,
   "compagnonActif": "",
   "rencontreExpire": 0
+,
+  "derniereActivite": 1782079238
 }

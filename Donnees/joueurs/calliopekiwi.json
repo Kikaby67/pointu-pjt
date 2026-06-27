@@ -1,8 +1,8 @@
 {
   "nomJoueur": "CalliopeKiwi",
-  "ram": 49,
+  "ram": 75,
   "niveau": 4,
-  "experience": 3719,
+  "experience": 4039,
   "classeChoisie": true,
   "classe": "Algorythmancien",
   "sousClasseChoisie": false,
@@ -17,20 +17,20 @@
   "charisme": 16,
   "enCombat": false,
   "enQuete": false,
-  "queteId": "service_03",
+  "queteId": "service_01",
   "queteTicksRestants": 0,
-  "queteDernierTick": 1781887158,
-  "queteTotalPause": 0,
+  "queteDernierTick": 1782317132,
+  "queteTotalPause": 59,
   "quetePauseDebut": 0,
   "queteCooldownFin": 0,
   "enRencontre": false,
   "rencontreType": "",
-  "dernierCheckRencontre": 1781888615,
+  "dernierCheckRencontre": 1782318039,
   "reposCooldownFin": 1779740897,
-  "queteEventsUsed": 148,
-  "offreValeur": 0,
+  "queteEventsUsed": 0,
+  "offreValeur": 15,
   "combatActuel": {
-    "ennemiNom": "Drone-racine",
+    "ennemiNom": "Taupe-Malware",
     "ennemiPVActuels": 30,
     "buffActif": false,
     "protectionActive": false,
@@ -43,9 +43,11 @@
   "statistiques": {
     "combatsGagnes": 7,
     "combatsPerdus": 1,
-    "quetesTerminees": 6
+    "quetesTerminees": 10
   },
   "agilite": 12,
   "compagnonActif": "",
   "rencontreExpire": 0
+,
+  "derniereActivite": 1782317778
 }

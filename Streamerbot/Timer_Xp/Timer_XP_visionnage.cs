@@ -17,7 +17,8 @@ public class CPHInline
 
         long maintenant = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-        string[] fichiers = Directory.GetFiles(DOSSIER_JOUEURS, "*.json");
+        string[] fichiers  = Directory.GetFiles(DOSSIER_JOUEURS, "*.json");
+        string   cfgLevel  = File.ReadAllText(CONFIG_LEVEL);
 
         foreach (string cheminFichier in fichiers)
         {
@@ -38,13 +39,13 @@ public class CPHInline
 
             json = ModifierValeur(json, "experience", nouvelXP.ToString(), false);
 
-            int nouveauNiveau = CalculerNiveau(nouvelXP);
+            int nouveauNiveau = CalculerNiveau(nouvelXP, cfgLevel);
 
             if (nouveauNiveau > niveauActuel)
             {
                 json = ModifierValeur(json, "niveau", nouveauNiveau.ToString(), false);
-                json = AppliquerBonusNiveau(json, nouveauNiveau);
-                CPH.SendMessage(MessageNiveau(nomJoueur, nouveauNiveau));
+                json = AppliquerBonusNiveau(json, nouveauNiveau, cfgLevel);
+                CPH.SendMessage(MessageNiveau(nomJoueur, nouveauNiveau, cfgLevel));
             }
 
             if (LireValeur(json, "enCombat") != "true")
@@ -66,25 +67,23 @@ public class CPHInline
         return true;
     }
 
-    private int CalculerNiveau(int xp)
+    private int CalculerNiveau(int xp, string cfgLevel)
     {
-        string cfg      = File.ReadAllText(CONFIG_LEVEL);
-        int niveauMax   = int.Parse(LireValeur(cfg, "niveauMax"));
+        int niveauMax = int.Parse(LireValeur(cfgLevel, "niveauMax"));
         for (int i = niveauMax; i >= 2; i--)
         {
-            int seuil = int.Parse(LireValeur(cfg, "niveau_" + i + "_xp"));
+            int seuil = int.Parse(LireValeur(cfgLevel, "niveau_" + i + "_xp"));
             if (xp >= seuil) return i;
         }
         return 1;
     }
 
-    private string AppliquerBonusNiveau(string json, int niveau)
+    private string AppliquerBonusNiveau(string json, int niveau, string cfgLevel)
     {
-        string cfg        = File.ReadAllText(CONFIG_LEVEL);
-        int pvBonus       = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_pvBonus"));
-        int caBonus       = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_caBonus"));
-        int ramBonus      = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_ramBonus"));
-        int charismeBonus = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_charismeBonus"));
+        int pvBonus       = int.Parse(LireValeur(cfgLevel, "niveau_" + niveau + "_pvBonus"));
+        int caBonus       = int.Parse(LireValeur(cfgLevel, "niveau_" + niveau + "_caBonus"));
+        int ramBonus      = int.Parse(LireValeur(cfgLevel, "niveau_" + niveau + "_ramBonus"));
+        int charismeBonus = int.Parse(LireValeur(cfgLevel, "niveau_" + niveau + "_charismeBonus"));
 
         if (pvBonus > 0)
         {
@@ -97,10 +96,9 @@ public class CPHInline
         return json;
     }
 
-    private string MessageNiveau(string nomJoueur, int niveau)
+    private string MessageNiveau(string nomJoueur, int niveau, string cfgLevel)
     {
-        string cfg   = File.ReadAllText(CONFIG_LEVEL);
-        string bonus = LireValeur(cfg, "niveau_" + niveau + "_message");
+        string bonus = LireValeur(cfgLevel, "niveau_" + niveau + "_message");
         return "🎉 " + nomJoueur + " passe au niveau " + niveau + " ! " + bonus;
     }
 

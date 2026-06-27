@@ -2,7 +2,7 @@
   "nomJoueur": "MaitreSplinterZ",
   "ram": 71,
   "niveau": 4,
-  "experience": 3405,
+  "experience": 3445,
   "classeChoisie": true,
   "classe": "Algorythmancien",
   "sousClasseChoisie": false,
@@ -48,4 +48,6 @@
   "agilite": 12,
   "compagnonActif": "",
   "rencontreExpire": 0
+,
+  "derniereActivite": 1782086876
 }

@@ -4,6 +4,7 @@ using System.IO;
 public class CPHInline
 {
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
+    private const string CONFIG_ITEMS    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_items.json";
 
     public bool Execute()
     {
@@ -40,15 +41,15 @@ public class CPHInline
             CPH.SendMessage(msg2);
         }
 
-        // Message 3 : stats combat
-        int pvActuels  = int.Parse(LireValeur(json, "pvActuels"));
-        int pvMax      = int.Parse(LireValeur(json, "pvMax"));
-        int ca         = int.Parse(LireValeur(json, "classeArmure"));
-        int atq        = int.Parse(LireValeur(json, "bonusAttaque"));
+        // Message 3 : stats combat (effectives = base + bonus items)
+        int pvActuels   = int.Parse(LireValeur(json, "pvActuels"));
+        int pvMax       = int.Parse(LireValeur(json, "pvMax"));
+        int ca          = int.Parse(LireValeur(json, "classeArmure"))  + GetBonusItems(json, "caBonus");
+        int atq         = int.Parse(LireValeur(json, "bonusAttaque"))  + GetBonusItems(json, "attaqueBonus");
         int manaActuels = int.Parse(LireValeur(json, "manaActuels"));
-        int manaMax    = int.Parse(LireValeur(json, "manaMax"));
-        int charisme   = int.Parse(LireValeur(json, "charisme"));
-        int agilite    = int.Parse(LireValeur(json, "agilite"));
+        int manaMax     = int.Parse(LireValeur(json, "manaMax"))       + GetBonusItems(json, "manaBonus");
+        int charisme    = int.Parse(LireValeur(json, "charisme"))      + GetBonusItems(json, "charismeBonus");
+        int agilite     = int.Parse(LireValeur(json, "agilite"));
 
         string msg3 = nomJoueur + " — PV : " + pvActuels + "/" + pvMax + " | CA : " + ca + " | Atq : +" + atq;
         if (manaMax > 0) msg3 += " | Mana : " + manaActuels + "/" + manaMax;
@@ -80,6 +81,23 @@ public class CPHInline
 
         CPH.SendMessage(msg4);
         return true;
+    }
+
+    private int GetBonusItems(string json, string stat)
+    {
+        string   cfgItems = File.ReadAllText(CONFIG_ITEMS);
+        string[] slots    = { "armeEquipee", "armureEquipee", "accessoireEquipe" };
+        int total = 0;
+        foreach (string slot in slots)
+        {
+            string item = LireValeur(json, slot);
+            if (item != "" && item != "0")
+            {
+                string valStr = LireValeur(cfgItems, item + "_" + stat);
+                if (valStr != "0") total += int.Parse(valStr);
+            }
+        }
+        return total;
     }
 
     private string LireValeur(string json, string cle)
