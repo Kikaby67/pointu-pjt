@@ -12,7 +12,7 @@ Chaque joueur a un fichier JSON sur le disque local. Pas de base de données.
 
 **Machine** : Windows 11, AMD Ryzen 5 5600X, 32 Go RAM
 **Stack** : Streamer.bot (C# inline), JSON fichiers plats, .NET 10.0 (prototypage)
-**Repo GitHub** : https://github.com/Kikaby67/pjt (public) — ⚠️ l'ancien repo `Pointupjt` est abandonné
+**Repo GitHub** : https://github.com/Kikaby67/Pointupjt (public) — remote `origin`, branche `main`
 
 ---
 
@@ -1048,7 +1048,7 @@ Lit les profils depuis le repo GitHub public.
 **Commandes** : `!profil`, `!arbonet`, `!aide`
 **Channel** : `CHANNEL_ID = 1490232175382102016`
 
-> ⚠️ `DISCORD_TOKEN` hardcodé dans `bot_discord.py` — **ne jamais pusher ce fichier sur GitHub**
+> Le token Discord n'est **pas** versionné dans ce dépôt (fourni à l'exécution, hors code).
 
 **Déploiement** : zipper `bot_discord.py` + `discloud.config` + `requirements.txt` → uploader sur discloud.app
 
