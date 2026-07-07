@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Kika-sync — Interface graphique.
+Kika-sync — Interface graphique (thème sombre vert & noir).
 Pilote la synchro .cs -> Streamer.bot (kika_sync.py) sans passer par PowerShell.
 
 Lancement : double-clic sur "Lancer Kika-sync.bat"
          ou : python kika_sync_gui.py
 """
 
+import importlib.util
 import os
 import queue
 import subprocess
@@ -29,6 +30,29 @@ if PY.lower().endswith("pythonw.exe"):
 
 CREATE_NO_WINDOW = 0x08000000 if sys.platform.startswith("win") else 0
 
+# Réutilise sb_is_running() de kika_sync pour la pastille d'état (best effort)
+SB_IS_RUNNING = None
+try:
+    _spec = importlib.util.spec_from_file_location("kika_sync", KIKA_SYNC)
+    _ks = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_ks)
+    SB_IS_RUNNING = _ks.sb_is_running
+except Exception:
+    SB_IS_RUNNING = None
+
+# ---- Palette vert & noir ----
+BG       = "#0c100c"   # fond général (noir légèrement verdâtre)
+BG_ALT   = "#141b14"   # panneaux / journal
+BG_BTN2  = "#18221a"   # boutons secondaires
+GREEN    = "#39ff14"   # accent principal (repris du bot Discord)
+GREEN_H  = "#5bff45"   # survol
+GREEN_D  = "#2bcf10"   # pressé
+INK      = "#06140b"   # texte sur bouton vert
+FG       = "#d7e5d7"   # texte principal
+FG_DIM   = "#6f8a6f"   # texte discret
+RED      = "#ff6b6b"
+AMBER    = "#e8b84b"
+
 
 class App:
     def __init__(self, root):
@@ -40,39 +64,36 @@ class App:
         root.title("Kika-sync — Streamer.bot")
         root.geometry("900x600")
         root.minsize(720, 500)
+        root.configure(bg=BG)
 
-        style = ttk.Style()
-        try:
-            style.theme_use("vista")
-        except tk.TclError:
-            pass
-        style.configure("Big.TButton", font=("Segoe UI", 11, "bold"), padding=(10, 12))
-        style.configure("Kika.Header.TLabel", font=("Segoe UI", 15, "bold"))
+        self._init_style()
 
-        # ---- En-tête + options ----
-        head = ttk.Frame(root, padding=(14, 12, 14, 4))
+        # ---- En-tête + état ----
+        head = ttk.Frame(root, padding=(16, 14, 16, 6))
         head.pack(fill="x")
         ttk.Label(head, text="⚡ Kika-sync", style="Kika.Header.TLabel").pack(side="left")
+        self.sb_dot = ttk.Label(head, text="", style="Kika.Dim.TLabel")
+        self.sb_dot.pack(side="right")
 
-        opt = ttk.Frame(head)
-        opt.pack(side="right")
-        ttk.Label(opt, text="Reload :").pack(side="left")
+        # ---- Options reload ----
+        opt = ttk.Frame(root, padding=(16, 0))
+        opt.pack(fill="x")
+        ttk.Label(opt, text="Reload :", style="Kika.Dim.TLabel").pack(side="left")
         self.mode = tk.StringVar(value="A")
         ttk.Radiobutton(opt, text="A (auto)", variable=self.mode, value="A",
-                        command=self._sync_lock).pack(side="left", padx=(4, 2))
+                        command=self._sync_lock).pack(side="left", padx=(6, 2))
         ttk.Radiobutton(opt, text="B (SB fermé)", variable=self.mode, value="B",
-                        command=self._sync_lock).pack(side="left", padx=(0, 8))
+                        command=self._sync_lock).pack(side="left", padx=(0, 10))
         self.lock = tk.BooleanVar(value=False)
         self.chk_lock = ttk.Checkbutton(opt, text="verrouiller", variable=self.lock)
         self.chk_lock.pack(side="left")
 
-        ttk.Label(root,
+        ttk.Label(root, style="Kika.Dim.TLabel", padding=(16, 4),
                   text="Mode A = ferme et relance Streamer.bot tout seul (recommandé).  "
-                       "Mode B = patch seul, SB doit être fermé.",
-                  foreground="#7d8894").pack(fill="x", padx=16)
+                       "Mode B = patch seul, SB doit être fermé.").pack(fill="x")
 
         # ---- 3 actions principales ----
-        prim = ttk.Frame(root, padding=(14, 10))
+        prim = ttk.Frame(root, padding=(14, 8))
         prim.pack(fill="x")
         for i in range(3):
             prim.columnconfigure(i, weight=1, uniform="prim")
@@ -93,45 +114,98 @@ class App:
         self.btn_dup.grid(row=0, column=2, sticky="ew", padx=(6, 0))
 
         # ---- Actions secondaires ----
-        sec = ttk.Frame(root, padding=(14, 0))
+        sec = ttk.Frame(root, padding=(14, 2))
         sec.pack(fill="x")
         self.btn_stamp = ttk.Button(sec, text="🏷️ Écrire les en-têtes (auto-map)",
+                                    style="Ghost.TButton",
                                     command=lambda: self.run(["--discover", "--write"]))
         self.btn_stamp.pack(side="left", padx=(0, 6))
         self.btn_watch = ttk.Button(sec, text="▶ Surveillance auto",
-                                    command=self.toggle_watch)
+                                    style="Ghost.TButton", command=self.toggle_watch)
         self.btn_watch.pack(side="left", padx=6)
-        self.btn_stop = ttk.Button(sec, text="■ Stop", command=self.stop, state="disabled")
+        self.btn_stop = ttk.Button(sec, text="■ Stop", style="Ghost.TButton",
+                                   command=self.stop, state="disabled")
         self.btn_stop.pack(side="left", padx=6)
 
         # ---- Journal ----
         logframe = ttk.Frame(root, padding=(14, 8))
         logframe.pack(fill="both", expand=True)
         self.txt = tk.Text(logframe, wrap="word", height=15,
-                           background="#111418", foreground="#d6dae0",
-                           insertbackground="#d6dae0", relief="flat",
-                           font=("Consolas", 9))
+                           background=BG_ALT, foreground=FG,
+                           insertbackground=GREEN, relief="flat", borderwidth=0,
+                           highlightthickness=1, highlightbackground="#20301f",
+                           padx=10, pady=8, font=("Consolas", 9))
         self.txt.pack(side="left", fill="both", expand=True)
-        sb = ttk.Scrollbar(logframe, command=self.txt.yview)
+        sb = ttk.Scrollbar(logframe, command=self.txt.yview, style="Kika.Vertical.TScrollbar")
         sb.pack(side="right", fill="y")
         self.txt.configure(yscrollcommand=sb.set, state="disabled")
-        self.txt.tag_config("warn", foreground="#e8b84b")
-        self.txt.tag_config("err",  foreground="#ef6b6b")
-        self.txt.tag_config("ok",   foreground="#66c489")
-        self.txt.tag_config("dim",  foreground="#7d8894")
+        self.txt.tag_config("warn", foreground=AMBER)
+        self.txt.tag_config("err",  foreground=RED)
+        self.txt.tag_config("ok",   foreground=GREEN)
+        self.txt.tag_config("dim",  foreground=FG_DIM)
 
         # ---- Barre d'état ----
-        bottom = ttk.Frame(root, padding=(14, 6))
+        bottom = ttk.Frame(root, padding=(16, 8))
         bottom.pack(fill="x")
         self.status = tk.StringVar(value="Prêt.")
-        ttk.Label(bottom, textvariable=self.status).pack(side="left")
-        ttk.Button(bottom, text="Vider le journal", command=self.clear_log).pack(side="right")
-        ttk.Button(bottom, text="Ouvrir le log", command=self.open_log).pack(side="right", padx=6)
+        ttk.Label(bottom, textvariable=self.status, style="Kika.Dim.TLabel").pack(side="left")
+        ttk.Button(bottom, text="Vider le journal", style="Ghost.TButton",
+                   command=self.clear_log).pack(side="right")
+        ttk.Button(bottom, text="Ouvrir le log", style="Ghost.TButton",
+                   command=self.open_log).pack(side="right", padx=6)
 
         self._log("Kika-sync prêt. Chemins : configurés dans kika_sync.local.json.\n", "dim")
         self._sync_lock()
         self.root.after(80, self._poll)
+        self.root.after(300, self._update_sb_status)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    # ------------------ style ------------------
+    def _init_style(self):
+        st = ttk.Style()
+        try:
+            st.theme_use("clam")  # le plus stylable des thèmes intégrés
+        except tk.TclError:
+            pass
+        st.configure(".", background=BG, foreground=FG, bordercolor=BG,
+                     focuscolor=BG, font=("Segoe UI", 10))
+        st.configure("TFrame", background=BG)
+        st.configure("TLabel", background=BG, foreground=FG)
+        st.configure("Kika.Header.TLabel", background=BG, foreground=GREEN,
+                     font=("Segoe UI", 16, "bold"))
+        st.configure("Kika.Dim.TLabel", background=BG, foreground=FG_DIM)
+
+        st.configure("TRadiobutton", background=BG, foreground=FG)
+        st.map("TRadiobutton",
+               foreground=[("selected", GREEN), ("active", GREEN_H)],
+               background=[("active", BG)])
+        st.configure("TCheckbutton", background=BG, foreground=FG_DIM)
+        st.map("TCheckbutton",
+               foreground=[("selected", GREEN), ("active", FG)],
+               background=[("active", BG)])
+
+        # Boutons principaux : fond vert, texte encre
+        st.configure("Big.TButton", background=GREEN, foreground=INK,
+                     font=("Segoe UI", 11, "bold"), padding=(10, 14),
+                     borderwidth=0, relief="flat")
+        st.map("Big.TButton",
+               background=[("disabled", "#25361f"), ("pressed", GREEN_D),
+                           ("active", GREEN_H)],
+               foreground=[("disabled", "#5f7a5f")])
+
+        # Boutons secondaires : contour discret, texte vert
+        st.configure("Ghost.TButton", background=BG_BTN2, foreground=GREEN,
+                     font=("Segoe UI", 9), padding=(10, 6),
+                     borderwidth=1, relief="flat")
+        st.map("Ghost.TButton",
+               background=[("disabled", BG), ("pressed", "#0f170f"),
+                           ("active", "#213021")],
+               foreground=[("disabled", "#4b5f4b"), ("active", GREEN_H)],
+               bordercolor=[("!disabled", "#2c4029")])
+
+        st.configure("Kika.Vertical.TScrollbar", background=BG_BTN2,
+                     troughcolor=BG, bordercolor=BG, arrowcolor=FG_DIM)
+        st.map("Kika.Vertical.TScrollbar", background=[("active", "#263824")])
 
     # ------------------ helpers UI ------------------
     def _reload_args(self):
@@ -182,6 +256,20 @@ class App:
                 self.status.set("Impossible d'ouvrir le log ici.")
         else:
             self.status.set("Pas encore de fichier log.")
+
+    def _update_sb_status(self):
+        if SB_IS_RUNNING is not None:
+            try:
+                running = SB_IS_RUNNING()
+            except Exception:
+                running = None
+            if running is True:
+                self.sb_dot.configure(text="●  Streamer.bot actif", foreground=GREEN)
+            elif running is False:
+                self.sb_dot.configure(text="○  Streamer.bot arrêté", foreground=FG_DIM)
+            else:
+                self.sb_dot.configure(text="")
+        self.root.after(3000, self._update_sb_status)
 
     # ------------------ exécution ------------------
     def run(self, args, watch=False):

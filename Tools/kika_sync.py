@@ -392,12 +392,18 @@ def patch_files(paths, reload_mode, lock):
 
 
 # ------------------------- process Streamer.bot -------------------------
+# Empeche l'apparition d'une fenetre console (tasklist/taskkill) quand l'appli
+# tourne sans console (ex: lancee via pythonw depuis l'interface).
+CREATE_NO_WINDOW = 0x08000000 if sys.platform.startswith("win") else 0
+
+
 def sb_is_running():
     exe = os.path.basename(SB_EXE)
     try:
         if sys.platform.startswith("win"):
             out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq " + exe],
-                                 capture_output=True, text=True).stdout or ""
+                                 capture_output=True, text=True,
+                                 creationflags=CREATE_NO_WINDOW).stdout or ""
             return exe.lower() in out.lower()
         return subprocess.run(["pgrep", "-f", exe],
                               capture_output=True).returncode == 0
@@ -409,7 +415,8 @@ def kill_streamerbot():
     exe = os.path.basename(SB_EXE)
     if sys.platform.startswith("win"):
         r = subprocess.run(["taskkill", "/F", "/IM", exe],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True,
+                           creationflags=CREATE_NO_WINDOW)
         if r.returncode == 0:
             log(f"Streamer.bot ({exe}) tue (force).")
             time.sleep(1.0)
