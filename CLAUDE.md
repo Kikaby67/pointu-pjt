@@ -213,8 +213,8 @@ creation_pv_de (6) · creation_ca_de (4) · creation_atq_de (4)
 — replis —
 ennemi_ca_defaut (12) · ennemi_degats_defaut (6) · ennemi_xp_defaut (15) · ennemi_ram_defaut (3) · soin_max_defaut (4)
 
-⚠️ Obsolètes (ancien combat tour par tour, plus lus) : combat_defense_bonus_ca,
-   combat_fuite_seuil_normal, combat_fuite_seuil_cryptolame, attaque_degats_defaut, attaque_des_defaut
+✅ Clés obsolètes de l'ancien combat tour par tour (combat_defense_bonus_ca, combat_fuite_seuil_normal,
+   combat_fuite_seuil_cryptolame, attaque_degats_defaut, attaque_des_defaut) : **supprimées** (audit v2.2.1).
 ```
 
 ### `config_quetes.json` — Format quêtes
@@ -617,6 +617,9 @@ Trigger : Command Triggered → !quete
 Parcourt tous les fichiers joueurs. Pour chaque joueur `enQuete == true` (ajoute au passage `rencontreExpire` /
 `compagnonActif` aux anciens profils via `EnsureChamp`) :
 
+> 🛡️ Chaque profil est traité dans un `try/catch` (audit v2.2.1) : un JSON corrompu est logué (`CPH.LogWarn`)
+> et ignoré, sans bloquer le traitement des autres joueurs.
+
 **CAS 1** — `enRencontre == true` (rencontre en attente, toutes types) :
 - Si `maintenant > rencontreExpire` → **timeout auto** : quête reprend.
   Message différencié : ennemi = "s'éloigne" / allié = "rencontre prend fin".
@@ -814,7 +817,8 @@ Duel **amical** entre deux joueurs (aucune perte de PV). Le challenger pose un d
 
 **`!duel` (pose le défi)** — vérifie, dans l'ordre :
 - Les deux ont `classeChoisie == true`
-- Cible parsée depuis `args["rawInput"]` (`@` retiré), existe, **≠ soi-même**, pas déjà défiée (`duelDe` vivant)
+- Cible parsée depuis `args["rawInput"]` (`@` retiré), **validée** `[a-zA-Z0-9_]` via `EstPseudoValide`
+  (anti path traversal — le pseudo construit un chemin de fichier), existe, **≠ soi-même**, pas déjà défiée (`duelDe` vivant)
 - Challenger hors cooldown (`duelCooldownFin`), sans défi sortant déjà en cours (`duelVers`, nettoyé si expiré)
 - Les deux « dans l'Antre » : `enQuete == false`, `enCombat == false`, `pvActuels > 0`
 - **Niveau** : `niveauCible == niveauChallenger` **ou** `niveauChallenger + 1` (même niveau ou 1 au-dessus)

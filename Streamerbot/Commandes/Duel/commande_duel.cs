@@ -36,6 +36,13 @@ public class CPHInline
             CPH.SendMessage(nomJoueur + ", indique qui tu veux défier : !duel @pseudo");
             return true;
         }
+        // Sécurité : le pseudo sert à construire un chemin de fichier — on interdit tout
+        // caractère hors [a-z A-Z 0-9 _] (bloque ../, \, ., etc. → pas de path traversal).
+        if (!EstPseudoValide(cibleBrut))
+        {
+            CPH.SendMessage(nomJoueur + ", ce pseudo est invalide. Exemple : !duel @pseudo");
+            return true;
+        }
         if (cibleBrut.ToLower() == nomJoueur.ToLower())
         {
             CPH.SendMessage(nomJoueur + ", tu ne peux pas te défier toi-même !");
@@ -147,6 +154,15 @@ public class CPHInline
 
         long delai = long.Parse(LireValeur(cfgG, "duel_expire_secondes"));
         CPH.SendMessage("⚔️ " + nomJoueur + " (niv " + niveauA + ") défie " + cible + " (niv " + niveauB + ") en duel amical ! " + cible + ", tape !accepter pour relever le défi ou !refuser pour décliner (" + delai + "s).");
+        return true;
+    }
+
+    // Pseudo Twitch : lettres/chiffres/underscore uniquement (anti path traversal)
+    private bool EstPseudoValide(string s)
+    {
+        if (s.Length == 0 || s.Length > 25) return false;
+        foreach (char c in s)
+            if (!(char.IsLetterOrDigit(c) || c == '_')) return false;
         return true;
     }
 

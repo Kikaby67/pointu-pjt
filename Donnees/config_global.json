@@ -6,9 +6,6 @@
   "repos_cooldown_secondes": 1800,
 
   "combat_mana_cout_soin": 5,
-  "combat_defense_bonus_ca": 3,
-  "combat_fuite_seuil_normal": 12,
-  "combat_fuite_seuil_cryptolame": 8,
 
   "quete_taux_echec": 20,
   "quete_chance_rencontre": 30,
@@ -30,8 +27,6 @@
   "ennemi_xp_defaut": 15,
   "ennemi_ram_defaut": 3,
 
-  "attaque_degats_defaut": 8,
-  "attaque_des_defaut": 1,
   "soin_max_defaut": 4,
 
   "rencontre_taux_ennemi": 40,

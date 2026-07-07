@@ -35,6 +35,9 @@ public class CPHInline
         bool auMoinsUneActive = false;
         foreach (string chemin in fichiers)
         {
+          // Un profil corrompu ne doit pas geler le traitement des autres joueurs.
+          try
+          {
             string json = File.ReadAllText(chemin);
             if (LireValeur(json, "enQuete") != "true") continue;
 
@@ -265,6 +268,11 @@ public class CPHInline
                 File.WriteAllText(chemin, json);
                 CPH.SendMessage(nomJoueur + ", ta quête est terminée... Échec. Le destin ne t'a pas souri cette fois. Retente ta chance bientôt !");
             }
+          }
+          catch (Exception ex)
+          {
+              CPH.LogWarn("QuestCheck : profil ignoré (" + chemin + ") — " + ex.Message);
+          }
         }
 
         if (!auMoinsUneActive) CPH.DisableTimer("QuestCheck");
