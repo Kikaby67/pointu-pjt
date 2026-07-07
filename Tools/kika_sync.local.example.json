@@ -1,5 +1,5 @@
 {
-  "_comment": "Copie ce fichier en 'sb_sync.local.json' et mets tes vrais chemins. Il est git-ignore : tes chemins ne partent pas sur GitHub.",
+  "_comment": "Copie ce fichier en 'kika_sync.local.json' et mets tes vrais chemins. Il est git-ignore : tes chemins ne partent pas sur GitHub.",
   "actions_json": "C:\\Chemin\\Vers\\Streamer.bot\\data\\actions.json",
   "sb_exe": "C:\\Chemin\\Vers\\Streamer.bot\\Streamer.bot.exe",
   "watch_dir": "(optionnel — par defaut : le dossier Streamerbot du repo)",

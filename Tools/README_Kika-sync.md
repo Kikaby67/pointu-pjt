@@ -1,6 +1,6 @@
-# sb_sync — Sync `.cs` → Streamer.bot `actions.json`
+# Kika-sync — Sync `.cs` → Streamer.bot `actions.json`
 
-Pousse automatiquement tes fichiers `.cs` locaux vers les sub-actions « Execute C# Code »
+Pousse tes fichiers `.cs` locaux (VS Code) vers les sub-actions « Execute C# Code »
 de Streamer.bot, sans copier-coller dans l'UI.
 
 ## Comment ça marche
@@ -29,12 +29,16 @@ Chaque `.cs` porte 2 commentaires d'en-tête :
 
 ## Interface graphique (sans PowerShell)
 
-Double-clique sur **`Lancer interface.bat`** (ou `python sb_sync_gui.py`).
-Fenêtre avec :
-- choix du mode reload **A / B** + case « verrouiller » (mode B),
-- boutons **Découvrir**, **Écrire les en-têtes**, **Patch complet**, **Patch un fichier…**,
-  **Démarrer/Arrêter la surveillance**, **Stop**,
-- journal en direct (mêmes logs que la console) + bouton **Ouvrir le fichier log**.
+Double-clique sur **`Lancer Kika-sync.bat`** (ou `python kika_sync_gui.py`).
+
+**3 boutons principaux :**
+- **🗂️ Synchroniser tout le dossier** → pousse tous les `.cs` du dossier VS Code (`--once`).
+- **💾 Synchroniser la dernière save** → pousse uniquement le `.cs` modifié le plus récemment (`--last`).
+- **🔍 Scanner les doublons** → analyse `actions.json` et signale les actions avec plusieurs
+  sous-actions C# ou des GUID partagés (`--check-duplicates`, lecture seule).
+
+Plus : choix du mode reload **A / B**, **🏷️ Écrire les en-têtes** (auto-map), **▶ Surveillance auto**,
+**■ Stop**, journal en direct + **Ouvrir le log**.
 
 Tout le reste de ce README décrit la version ligne de commande (identique sous le capot).
 
@@ -47,7 +51,7 @@ Tout le reste de ce README décrit la version ligne de commande (identique sous 
 ## Configuration
 
 Les chemins machine-spécifiques ne sont **pas** en dur dans le code versionné.
-Copie **`sb_sync.local.example.json`** en **`sb_sync.local.json`** (ce dernier est git-ignoré,
+Copie **`kika_sync.local.example.json`** en **`kika_sync.local.json`** (ce dernier est git-ignoré,
 donc tes chemins ne partent jamais sur GitHub) et renseigne :
 
 ```json
@@ -66,7 +70,7 @@ donc tes chemins ne partent jamais sur GitHub) et renseigne :
 | `reload_mode` | `A` = kill+relaunch (défaut), `B` = patch seul |
 
 Les autres réglages (`CREATE_IF_MISSING`, `LOCK_AFTER_PATCH`, seuils…) restent en tête de
-`sb_sync.py`. Le mode reload est surchargeable en ligne de commande (`--reload A|B`).
+`kika_sync.py`. Le mode reload est surchargeable en ligne de commande (`--reload A|B`).
 
 ## Mise en route (recommandé, **Streamer.bot fermé**)
 
@@ -74,11 +78,11 @@ Les autres réglages (`CREATE_IF_MISSING`, `LOCK_AFTER_PATCH`, seuils…) resten
 cd Tools
 
 # 1) Pré-remplir les en-têtes (GUID) sur tous les .cs qui matchent à coup sûr
-python sb_sync.py --discover          # aperçu, n'écrit rien
-python sb_sync.py --discover --write  # insère // sb-action + // sb-subaction-id (matchs ≥ 0.97)
+python kika_sync.py --discover          # aperçu, n'écrit rien
+python kika_sync.py --discover --write  # insère // sb-action + // sb-subaction-id (matchs ≥ 0.97)
 
 # 2) Premier patch complet
-python sb_sync.py --once --reload B
+python kika_sync.py --once --reload B
 
 # 3) Relance Streamer.bot toi-même → le code est recompilé et actif
 ```
@@ -90,16 +94,16 @@ python sb_sync.py --once --reload B
 
 ```bash
 # Surveillance continue (patch à chaque sauvegarde), sans toucher au process SB
-python sb_sync.py --reload B
+python kika_sync.py --reload B
 
 # Surveillance + redémarrage automatique de SB à chaque sauvegarde
-python sb_sync.py --reload A
+python kika_sync.py --reload A
 
 # Patcher un seul fichier
-python sb_sync.py --file ..\Streamerbot\Commandes\Secret\commande_secret.cs
+python kika_sync.py --file ..\Streamerbot\Commandes\Secret\commande_secret.cs
 
 # Mode B "blindé" : verrouille actions.json après patch pour empêcher SB de l'écraser
-python sb_sync.py --reload B --lock
+python kika_sync.py --reload B --lock
 ```
 
 ### Arguments
@@ -107,7 +111,9 @@ python sb_sync.py --reload B --lock
 | Argument | Effet |
 |---|---|
 | `--reload A\|B` | force le mode reload pour cette exécution |
-| `--once` | patch tous les `.cs` une fois puis quitte (pas de surveillance) |
+| `--once` | synchronise tout le dossier (tous les `.cs`) puis quitte |
+| `--last` | synchronise le `.cs` modifié le plus récemment puis quitte |
+| `--check-duplicates` | scanne `actions.json` et signale les doublons de sous-actions C# (lecture seule) |
 | `--file CHEMIN` | patch un seul `.cs` puis quitte |
 | `--discover` | propose un mapping par similarité de code (n'écrit rien) |
 | `--discover --write` | + insère les en-têtes pour les matchs sûrs (≥ 0.97) |
@@ -141,9 +147,9 @@ repasser en Mode A.
 
 ## Sécurité / traçabilité
 
-- **Backup horodaté** de `actions.json` avant chaque écriture → `…\data\_sbsync_backups\`
+- **Backup horodaté** de `actions.json` avant chaque écriture → `…\data\_kikasync_backups\`
   (les 50 derniers sont conservés). Indépendant du `.bak` que SB gère lui-même.
-- **Logs** dans la console **et** dans `Tools\sb_sync.log` : fichier détecté, action/sub-action
+- **Logs** dans la console **et** dans `Tools\kika_sync.log` : fichier détecté, action/sub-action
   trouvée ou non, backup, patch, reload.
 - Écriture **atomique** (fichier temporaire puis `os.replace`) + BOM UTF-8 et format minifié
   préservés à l'identique.

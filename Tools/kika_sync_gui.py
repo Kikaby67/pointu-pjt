@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-sb_sync_gui.py — Interface graphique pour sb_sync.py.
-Pilote la synchro .cs -> Streamer.bot sans passer par PowerShell.
+Kika-sync — Interface graphique.
+Pilote la synchro .cs -> Streamer.bot (kika_sync.py) sans passer par PowerShell.
 
-Lancement : double-clic sur "Lancer interface.bat"
-         ou : python sb_sync_gui.py
+Lancement : double-clic sur "Lancer Kika-sync.bat"
+         ou : python kika_sync_gui.py
 """
 
 import os
@@ -14,11 +14,11 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
-from tkinter import filedialog, ttk
+from tkinter import ttk
 
-HERE       = os.path.dirname(os.path.abspath(__file__))
-SB_SYNC    = os.path.join(HERE, "sb_sync.py")
-LOG_FILE   = os.path.join(HERE, "sb_sync.log")
+HERE      = os.path.dirname(os.path.abspath(__file__))
+KIKA_SYNC = os.path.join(HERE, "kika_sync.py")
+LOG_FILE  = os.path.join(HERE, "kika_sync.log")
 
 # python.exe meme si l'appli est lancee via pythonw.exe
 PY = sys.executable
@@ -37,61 +37,77 @@ class App:
         self.watching = False
         self.q = queue.Queue()
 
-        root.title("Streamer.bot — Sync C#")
-        root.geometry("860x560")
-        root.minsize(700, 460)
+        root.title("Kika-sync — Streamer.bot")
+        root.geometry("900x600")
+        root.minsize(720, 500)
 
-        # ---- Bandeau options ----
-        top = ttk.Frame(root, padding=(12, 10))
-        top.pack(fill="x")
+        style = ttk.Style()
+        try:
+            style.theme_use("vista")
+        except tk.TclError:
+            pass
+        style.configure("Big.TButton", font=("Segoe UI", 11, "bold"), padding=(10, 12))
+        style.configure("Kika.Header.TLabel", font=("Segoe UI", 15, "bold"))
 
-        ttk.Label(top, text="Reload :").pack(side="left")
+        # ---- En-tête + options ----
+        head = ttk.Frame(root, padding=(14, 12, 14, 4))
+        head.pack(fill="x")
+        ttk.Label(head, text="⚡ Kika-sync", style="Kika.Header.TLabel").pack(side="left")
+
+        opt = ttk.Frame(head)
+        opt.pack(side="right")
+        ttk.Label(opt, text="Reload :").pack(side="left")
         self.mode = tk.StringVar(value="A")
-        ttk.Radiobutton(top, text="B — patch seul (relance SB toi-même)",
-                        variable=self.mode, value="B",
-                        command=self._sync_lock).pack(side="left", padx=(4, 10))
-        ttk.Radiobutton(top, text="A — kill + relance auto de SB",
-                        variable=self.mode, value="A",
-                        command=self._sync_lock).pack(side="left", padx=(0, 14))
-
+        ttk.Radiobutton(opt, text="A (auto)", variable=self.mode, value="A",
+                        command=self._sync_lock).pack(side="left", padx=(4, 2))
+        ttk.Radiobutton(opt, text="B (SB fermé)", variable=self.mode, value="B",
+                        command=self._sync_lock).pack(side="left", padx=(0, 8))
         self.lock = tk.BooleanVar(value=False)
-        self.chk_lock = ttk.Checkbutton(
-            top, text="verrouiller actions.json après patch (anti-écrasement)",
-            variable=self.lock)
+        self.chk_lock = ttk.Checkbutton(opt, text="verrouiller", variable=self.lock)
         self.chk_lock.pack(side="left")
 
-        # ---- Boutons d'action ----
-        bar = ttk.Frame(root, padding=(12, 0))
-        bar.pack(fill="x")
+        ttk.Label(root,
+                  text="Mode A = ferme et relance Streamer.bot tout seul (recommandé).  "
+                       "Mode B = patch seul, SB doit être fermé.",
+                  foreground="#7d8894").pack(fill="x", padx=16)
 
-        self.btn_discover = ttk.Button(bar, text="🔍 Découvrir (aperçu)",
-                                       command=lambda: self.run(["--discover"]))
-        self.btn_discover.pack(side="left", padx=(0, 6), pady=6)
+        # ---- 3 actions principales ----
+        prim = ttk.Frame(root, padding=(14, 10))
+        prim.pack(fill="x")
+        for i in range(3):
+            prim.columnconfigure(i, weight=1, uniform="prim")
 
-        self.btn_stamp = ttk.Button(bar, text="🏷️ Écrire les en-têtes (auto-map)",
+        self.btn_all = ttk.Button(prim, text="🗂️  Synchroniser\ntout le dossier",
+                                  style="Big.TButton",
+                                  command=lambda: self.run(["--once"] + self._reload_args()))
+        self.btn_all.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+
+        self.btn_last = ttk.Button(prim, text="💾  Synchroniser\nla dernière save",
+                                   style="Big.TButton",
+                                   command=lambda: self.run(["--last"] + self._reload_args()))
+        self.btn_last.grid(row=0, column=1, sticky="ew", padx=6)
+
+        self.btn_dup = ttk.Button(prim, text="🔍  Scanner\nles doublons",
+                                  style="Big.TButton",
+                                  command=lambda: self.run(["--check-duplicates"]))
+        self.btn_dup.grid(row=0, column=2, sticky="ew", padx=(6, 0))
+
+        # ---- Actions secondaires ----
+        sec = ttk.Frame(root, padding=(14, 0))
+        sec.pack(fill="x")
+        self.btn_stamp = ttk.Button(sec, text="🏷️ Écrire les en-têtes (auto-map)",
                                     command=lambda: self.run(["--discover", "--write"]))
-        self.btn_stamp.pack(side="left", padx=6, pady=6)
-
-        self.btn_once = ttk.Button(bar, text="⬆️ Patch complet",
-                                   command=lambda: self.run(["--once"] + self._reload_args()))
-        self.btn_once.pack(side="left", padx=6, pady=6)
-
-        self.btn_file = ttk.Button(bar, text="📄 Patch un fichier…",
-                                   command=self.patch_file)
-        self.btn_file.pack(side="left", padx=6, pady=6)
-
-        self.btn_watch = ttk.Button(bar, text="▶ Démarrer la surveillance",
+        self.btn_stamp.pack(side="left", padx=(0, 6))
+        self.btn_watch = ttk.Button(sec, text="▶ Surveillance auto",
                                     command=self.toggle_watch)
-        self.btn_watch.pack(side="left", padx=(16, 6), pady=6)
-
-        self.btn_stop = ttk.Button(bar, text="■ Stop", command=self.stop,
-                                   state="disabled")
-        self.btn_stop.pack(side="left", padx=6, pady=6)
+        self.btn_watch.pack(side="left", padx=6)
+        self.btn_stop = ttk.Button(sec, text="■ Stop", command=self.stop, state="disabled")
+        self.btn_stop.pack(side="left", padx=6)
 
         # ---- Journal ----
-        logframe = ttk.Frame(root, padding=(12, 6))
+        logframe = ttk.Frame(root, padding=(14, 8))
         logframe.pack(fill="both", expand=True)
-        self.txt = tk.Text(logframe, wrap="word", height=18,
+        self.txt = tk.Text(logframe, wrap="word", height=15,
                            background="#111418", foreground="#d6dae0",
                            insertbackground="#d6dae0", relief="flat",
                            font=("Consolas", 9))
@@ -99,23 +115,20 @@ class App:
         sb = ttk.Scrollbar(logframe, command=self.txt.yview)
         sb.pack(side="right", fill="y")
         self.txt.configure(yscrollcommand=sb.set, state="disabled")
-        self.txt.tag_config("warn",  foreground="#e8b84b")
-        self.txt.tag_config("err",   foreground="#ef6b6b")
-        self.txt.tag_config("ok",    foreground="#66c489")
-        self.txt.tag_config("dim",   foreground="#7d8894")
+        self.txt.tag_config("warn", foreground="#e8b84b")
+        self.txt.tag_config("err",  foreground="#ef6b6b")
+        self.txt.tag_config("ok",   foreground="#66c489")
+        self.txt.tag_config("dim",  foreground="#7d8894")
 
         # ---- Barre d'état ----
-        bottom = ttk.Frame(root, padding=(12, 6))
+        bottom = ttk.Frame(root, padding=(14, 6))
         bottom.pack(fill="x")
         self.status = tk.StringVar(value="Prêt.")
         ttk.Label(bottom, textvariable=self.status).pack(side="left")
-        ttk.Button(bottom, text="Vider le journal",
-                   command=self.clear_log).pack(side="right")
-        ttk.Button(bottom, text="Ouvrir le fichier log",
-                   command=self.open_log).pack(side="right", padx=6)
+        ttk.Button(bottom, text="Vider le journal", command=self.clear_log).pack(side="right")
+        ttk.Button(bottom, text="Ouvrir le log", command=self.open_log).pack(side="right", padx=6)
 
-        self._log(f"Interface prête. Script : {SB_SYNC}\n"
-                  f"actions.json et chemins : configurés en tête de sb_sync.py.\n", "dim")
+        self._log("Kika-sync prêt. Chemins : configurés dans kika_sync.local.json.\n", "dim")
         self._sync_lock()
         self.root.after(80, self._poll)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -128,12 +141,11 @@ class App:
         return a
 
     def _sync_lock(self):
-        self.chk_lock.configure(
-            state="normal" if self.mode.get() == "B" else "disabled")
+        self.chk_lock.configure(state="normal" if self.mode.get() == "B" else "disabled")
 
     def _action_buttons(self):
-        return [self.btn_discover, self.btn_stamp, self.btn_once,
-                self.btn_file, self.btn_watch]
+        return [self.btn_all, self.btn_last, self.btn_dup,
+                self.btn_stamp, self.btn_watch]
 
     def _set_busy(self, busy):
         for b in self._action_buttons():
@@ -150,9 +162,10 @@ class App:
         tag = None
         if "[ERROR]" in line:
             tag = "err"
-        elif "[WARN]" in line:
+        elif "[WARN]" in line or "DOUBLON" in line or "ATTENTION" in line:
             tag = "warn"
-        elif " OK  " in line or "MATCH" in line or "patché" in line or "relancé" in line:
+        elif " OK  " in line or "MATCH" in line or "patché" in line \
+                or "relancé" in line or "Aucun doublon" in line or "✅" in line:
             tag = "ok"
         self._log(line, tag)
 
@@ -163,7 +176,10 @@ class App:
 
     def open_log(self):
         if os.path.exists(LOG_FILE):
-            os.startfile(LOG_FILE)  # noqa (Windows)
+            try:
+                os.startfile(LOG_FILE)  # noqa (Windows)
+            except (AttributeError, OSError):
+                self.status.set("Impossible d'ouvrir le log ici.")
         else:
             self.status.set("Pas encore de fichier log.")
 
@@ -172,11 +188,11 @@ class App:
         if self.proc is not None:
             self.status.set("Une opération est déjà en cours.")
             return
-        if not os.path.exists(SB_SYNC):
-            self._log(f"[ERROR] Introuvable : {SB_SYNC}\n", "err")
+        if not os.path.exists(KIKA_SYNC):
+            self._log(f"[ERROR] Introuvable : {KIKA_SYNC}\n", "err")
             return
 
-        cmd = [PY, "-u", SB_SYNC] + args
+        cmd = [PY, "-u", KIKA_SYNC] + args
         env = dict(os.environ, PYTHONIOENCODING="utf-8")
         self._log(f"\n$ {' '.join(args)}\n", "dim")
         try:
@@ -192,8 +208,7 @@ class App:
         self.watching = watch
         self._set_busy(True)
         self.status.set("Surveillance en cours…" if watch else "Traitement…")
-        threading.Thread(target=self._reader, args=(self.proc,),
-                         daemon=True).start()
+        threading.Thread(target=self._reader, args=(self.proc,), daemon=True).start()
 
     def _reader(self, proc):
         try:
@@ -223,18 +238,10 @@ class App:
         was_watch = self.watching
         self.watching = False
         self._set_busy(False)
-        self.btn_watch.configure(text="▶ Démarrer la surveillance")
+        self.btn_watch.configure(text="▶ Surveillance auto")
         self.status.set("Surveillance arrêtée." if was_watch else "Terminé.")
 
     # ------------------ boutons ------------------
-    def patch_file(self):
-        path = filedialog.askopenfilename(
-            title="Choisir un fichier .cs",
-            initialdir=os.path.join(os.path.dirname(HERE), "Streamerbot"),
-            filetypes=[("Fichiers C#", "*.cs"), ("Tous", "*.*")])
-        if path:
-            self.run(["--file", path] + self._reload_args())
-
     def toggle_watch(self):
         if self.proc is None:
             self.btn_watch.configure(text="⏳ Surveillance…")
@@ -259,10 +266,6 @@ class App:
 
 def main():
     root = tk.Tk()
-    try:
-        ttk.Style().theme_use("vista")
-    except tk.TclError:
-        pass
     App(root)
     root.mainloop()
 

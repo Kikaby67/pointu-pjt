@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-sb_sync.py — Synchronise des fichiers .cs locaux vers les sub-actions
-"Execute C# Code" de Streamer.bot (data/actions.json).
+Kika-sync (kika_sync.py) — Synchronise des fichiers .cs locaux vers les
+sub-actions "Execute C# Code" de Streamer.bot (data/actions.json).
 
 Mapping fichier .cs <-> sub-action :
   En-tete du .cs (commentaires C#, dans les ~40 premieres lignes) :
@@ -24,13 +24,15 @@ Reload apres patch :
            tu ne relances pas SB, et il y a un risque d'ecrasement si SB sauvegarde.
 
 Usage :
-  python sb_sync.py                      # watch, mode par defaut (voir RELOAD_MODE)
-  python sb_sync.py --reload A           # watch + restart auto de SB a chaque patch
-  python sb_sync.py --once               # patch tous les .cs une fois puis quitte
-  python sb_sync.py --file chemin.cs     # patch un seul fichier puis quitte
-  python sb_sync.py --discover           # propose un mapping par similarite de code
-  python sb_sync.py --discover --write   # + insere les en-tetes pour les matchs surs
-  python sb_sync.py --lock               # (mode B) passe actions.json en lecture seule apres patch
+  python kika_sync.py                      # watch, mode par defaut (voir RELOAD_MODE)
+  python kika_sync.py --reload A           # watch + restart auto de SB a chaque patch
+  python kika_sync.py --once               # synchronise TOUT le dossier VS Code (tous les .cs)
+  python kika_sync.py --last               # synchronise le .cs modifie le plus recemment
+  python kika_sync.py --check-duplicates   # scanne actions.json et signale les doublons de sous-actions C#
+  python kika_sync.py --file chemin.cs     # patch un seul fichier puis quitte
+  python kika_sync.py --discover           # propose un mapping par similarite de code
+  python kika_sync.py --discover --write   # + insere les en-tetes pour les matchs surs
+  python kika_sync.py --lock               # (mode B) passe actions.json en lecture seule apres patch
 
 Dependance : pip install watchdog   (uniquement pour le mode watch)
 """
@@ -53,8 +55,8 @@ import time
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # Chemins machine-specifiques : ces valeurs sont des EXEMPLES generiques.
-# Mets tes vrais chemins dans "sb_sync.local.json" (non versionne, cf. .gitignore)
-# pour ne pas exposer tes chemins d'acces sur GitHub. Voir sb_sync.local.example.json.
+# Mets tes vrais chemins dans "kika_sync.local.json" (non versionne, cf. .gitignore)
+# pour ne pas exposer tes chemins d'acces sur GitHub. Voir kika_sync.local.example.json.
 ACTIONS_JSON      = r"C:\Chemin\Vers\Streamer.bot\data\actions.json"
 SB_EXE            = r"C:\Chemin\Vers\Streamer.bot\Streamer.bot.exe"
 # Par defaut : le dossier Streamerbot du repo, deduit de l'emplacement de ce script.
@@ -72,7 +74,7 @@ KEEP_BACKUPS      = 50           # nombre de backups horodates conserves
 DISCOVER_THRESHOLD = 0.97        # similarite mini pour un auto-stamp en --discover --write
 
 # Surcharge locale (non versionnee) : {"actions_json":"...","sb_exe":"...","watch_dir":"...","reload_mode":"A"}
-_local = os.path.join(_HERE, "sb_sync.local.json")
+_local = os.path.join(_HERE, "kika_sync.local.json")
 if os.path.exists(_local):
     try:
         _c = json.load(open(_local, encoding="utf-8"))
@@ -83,8 +85,8 @@ if os.path.exists(_local):
     except (OSError, ValueError):
         pass
 
-BACKUP_DIR = os.path.join(os.path.dirname(ACTIONS_JSON), "_sbsync_backups")
-LOG_FILE   = os.path.join(_HERE, "sb_sync.log")
+BACKUP_DIR = os.path.join(os.path.dirname(ACTIONS_JSON), "_kikasync_backups")
+LOG_FILE   = os.path.join(_HERE, "kika_sync.log")
 # ======================================================================
 
 # Console UTF-8 (evite le mojibake des accents/emoji sous Windows)
@@ -479,6 +481,61 @@ def discover(write=False):
             log(f"  [aucun]        {rel}")
 
 
+# ------------------------- dernière sauvegarde -------------------------
+def newest_cs():
+    """Chemin du .cs modifie le plus recemment sous WATCH_DIR (ou None)."""
+    newest, newest_mtime = None, -1.0
+    for root, _d, names in os.walk(WATCH_DIR):
+        for n in names:
+            if n.lower().endswith(".cs"):
+                p = os.path.join(root, n)
+                try:
+                    m = os.path.getmtime(p)
+                except OSError:
+                    continue
+                if m > newest_mtime:
+                    newest, newest_mtime = p, m
+    return newest
+
+
+# ------------------------- scan doublons -------------------------
+def check_duplicates():
+    """Scanne actions.json : signale les actions ayant PLUSIEURS sous-actions C#
+    (doublons probables) et les GUID de sous-action partages. Ne modifie rien."""
+    try:
+        obj, _ = read_actions()
+    except (OSError, json.JSONDecodeError) as e:
+        log(f"Lecture actions.json impossible : {e}", "ERROR")
+        return
+
+    nb_multi, nb_dup_id = 0, 0
+    seen_ids = {}
+    for a in obj["actions"]:
+        cs = csharp_subactions(a)
+        if len(cs) > 1:
+            nb_multi += 1
+            log(f"  DOUBLON : action '{a.get('name')}' a {len(cs)} sous-actions C# :", "WARN")
+            for sa in cs:
+                lignes = base64.b64decode(sa["byteCode"]).decode("utf-8", "replace").splitlines()
+                apercu = next((l.strip() for l in lignes
+                               if l.strip() and not l.strip().startswith("//")),
+                              lignes[0] if lignes else "")
+                log(f"      - id {sa['id']} | index {sa.get('index')} | {apercu[:60]}")
+        for sa in a.get("subActions", []):
+            sid = sa.get("id")
+            if sid in seen_ids:
+                nb_dup_id += 1
+                log(f"  ID PARTAGE : {sid} present dans '{seen_ids[sid]}' ET '{a.get('name')}'", "WARN")
+            else:
+                seen_ids[sid] = a.get("name")
+
+    if nb_multi == 0 and nb_dup_id == 0:
+        log("✅ Aucun doublon : chaque action a au plus 1 sous-action C#, aucun id partage.")
+    else:
+        log(f"Scan termine : {nb_multi} action(s) avec doublon C#, {nb_dup_id} id(s) partage(s). "
+            f"Supprime les sous-actions en trop dans Streamer.bot (garde la bonne).", "WARN")
+
+
 # ------------------------- watch -------------------------
 def run_watch(reload_mode, lock):
     try:
@@ -547,7 +604,9 @@ def main():
     global RELOAD_MODE, LOCK_AFTER_PATCH
     p = argparse.ArgumentParser(description="Sync .cs -> Streamer.bot actions.json")
     p.add_argument("--reload", choices=["A", "B"], help="A=kill+relaunch, B=patch seul")
-    p.add_argument("--once", action="store_true", help="patch tous les .cs une fois puis quitte")
+    p.add_argument("--once", action="store_true", help="synchronise tout le dossier (tous les .cs)")
+    p.add_argument("--last", action="store_true", help="synchronise le .cs modifie le plus recemment")
+    p.add_argument("--check-duplicates", action="store_true", help="scanne actions.json pour les doublons C#")
     p.add_argument("--file", help="patch un seul fichier .cs puis quitte")
     p.add_argument("--discover", action="store_true", help="propose un mapping par similarite")
     p.add_argument("--write", action="store_true", help="(avec --discover) insere les en-tetes surs")
@@ -557,11 +616,22 @@ def main():
     reload_mode = args.reload or RELOAD_MODE
     lock = args.lock or LOCK_AFTER_PATCH
 
+    if args.check_duplicates:
+        check_duplicates()
+        return
     if args.discover:
         discover(write=args.write)
         return
     if args.file:
         patch_files([os.path.abspath(args.file)], reload_mode, lock)
+        return
+    if args.last:
+        p2 = newest_cs()
+        if p2:
+            log(f"Derniere sauvegarde : {os.path.relpath(p2, WATCH_DIR)}")
+            patch_files([p2], reload_mode, lock)
+        else:
+            log("Aucun fichier .cs trouve sous WATCH_DIR.", "WARN")
         return
     if args.once:
         files = []
