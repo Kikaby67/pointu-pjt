@@ -1,3 +1,5 @@
+// sb-action: !bonjour
+// sb-subaction-id: 24be61f7-405a-4e73-81d9-d2e28357a2bf
 using System;
 
 public class CPHInline

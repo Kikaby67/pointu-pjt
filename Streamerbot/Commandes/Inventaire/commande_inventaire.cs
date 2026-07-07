@@ -1,3 +1,5 @@
+// sb-action: !inventaire
+// sb-subaction-id: 1e7832e9-27c4-4490-8199-14a018e2c557
 using System;
 using System.IO;
 

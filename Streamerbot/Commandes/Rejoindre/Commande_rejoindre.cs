@@ -1,3 +1,5 @@
+// sb-action: !rejoindre
+// sb-subaction-id: c978a3ff-400e-4d32-b95d-a0d75c3d8410
 using System;
 using System.IO;
 

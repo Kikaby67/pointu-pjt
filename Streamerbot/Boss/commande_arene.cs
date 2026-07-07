@@ -1,3 +1,5 @@
+// sb-action: Combat de boss
+// sb-subaction-id: a355a4c3-3d46-4e73-af6f-901f9ea73f28
 using System;
 using System.IO;
 

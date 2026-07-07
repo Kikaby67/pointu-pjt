@@ -12,3 +12,7 @@ __pycache__/
 # ─── Logs ───
 error.log
 **/error.log
+
+# ─── Outil sb_sync : chemins d'accès perso + logs (ne pas partager) ───
+Tools/sb_sync.local.json
+Tools/sb_sync.log

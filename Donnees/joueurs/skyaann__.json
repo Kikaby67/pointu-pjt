@@ -2,7 +2,7 @@
   "nomJoueur": "skyaann__",
   "ram": 22,
   "niveau": 4,
-  "experience": 3292,
+  "experience": 3302,
   "classeChoisie": true,
   "classe": "Firewaller",
   "sousClasseChoisie": false,
@@ -48,4 +48,6 @@
   "agilite": 8,
   "compagnonActif": "",
   "rencontreExpire": 0
+,
+  "derniereActivite": 1783266980
 }

@@ -1,3 +1,5 @@
+// sb-action: !algorythmancien
+// sb-subaction-id: 8ebcbd6b-ca94-4bbd-8bcc-4406629e5d7c
 using System;
 using System.IO;
 

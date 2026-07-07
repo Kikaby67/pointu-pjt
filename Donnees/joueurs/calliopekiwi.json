@@ -1,8 +1,8 @@
 {
   "nomJoueur": "CalliopeKiwi",
-  "ram": 75,
+  "ram": 100,
   "niveau": 4,
-  "experience": 4039,
+  "experience": 4399,
   "classeChoisie": true,
   "classe": "Algorythmancien",
   "sousClasseChoisie": false,
@@ -17,37 +17,37 @@
   "charisme": 16,
   "enCombat": false,
   "enQuete": false,
-  "queteId": "service_01",
+  "queteId": "artefact_01",
   "queteTicksRestants": 0,
-  "queteDernierTick": 1782317132,
-  "queteTotalPause": 59,
+  "queteDernierTick": 1782929006,
+  "queteTotalPause": 514,
   "quetePauseDebut": 0,
   "queteCooldownFin": 0,
   "enRencontre": false,
   "rencontreType": "",
-  "dernierCheckRencontre": 1782318039,
+  "dernierCheckRencontre": 1782931064,
   "reposCooldownFin": 1779740897,
   "queteEventsUsed": 0,
-  "offreValeur": 15,
+  "offreValeur": 5,
   "combatActuel": {
-    "ennemiNom": "Taupe-Malware",
+    "ennemiNom": "Martre-Trojan",
     "ennemiPVActuels": 30,
     "buffActif": false,
     "protectionActive": false,
     "tourCombat": 1
   },
-  "inventaire": "Potion,Potion,Potion,Potion,Potion,Armure-de-feuille,Ecorce-N,Potion",
+  "inventaire": "Potion,Potion,Potion,Potion,Armure-de-feuille,Potion,Potion,Potion",
   "armeEquipee": "Luth-01",
   "armureEquipee": "",
   "accessoireEquipe": "",
   "statistiques": {
     "combatsGagnes": 7,
     "combatsPerdus": 1,
-    "quetesTerminees": 10
+    "quetesTerminees": 12
   },
   "agilite": 12,
   "compagnonActif": "",
   "rencontreExpire": 0
 ,
-  "derniereActivite": 1782317778
+  "derniereActivite": 1783282291
 }

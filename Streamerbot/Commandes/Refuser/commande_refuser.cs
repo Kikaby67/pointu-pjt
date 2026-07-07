@@ -21,6 +21,36 @@ public class CPHInline
         string json       = File.ReadAllText(cheminFichier);
         long   maintenant = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
+        // === Refus d'un duel entre joueurs (aucun cooldown pour le challenger) ===
+        json = EnsureChamp(json, "duelDe",     "", true);
+        json = EnsureChamp(json, "duelExpire", "0", false);
+        string duelDe = LireValeur(json, "duelDe");
+        if (duelDe != "" && duelDe != "0")
+        {
+            long dExp = long.Parse(LireValeur(json, "duelExpire"));
+            json = ModifierValeur(json, "duelDe",     "",  true);
+            json = ModifierValeur(json, "duelExpire", "0", false);
+            File.WriteAllText(cheminFichier, json);
+
+            string cheminA = Path.Combine(DOSSIER_JOUEURS, duelDe.ToLower() + ".json");
+            if (File.Exists(cheminA))
+            {
+                string jsonA = File.ReadAllText(cheminA);
+                jsonA = EnsureChamp(jsonA, "duelVers", "", true);
+                if (LireValeur(jsonA, "duelVers").ToLower() == nomJoueur.ToLower())
+                {
+                    jsonA = ModifierValeur(jsonA, "duelVers", "", true);
+                    File.WriteAllText(cheminA, jsonA);
+                }
+            }
+
+            if (maintenant > dExp)
+                CPH.SendMessage(nomJoueur + ", le défi de " + duelDe + " avait déjà expiré — c'est annulé.");
+            else
+                CPH.SendMessage(nomJoueur + " décline le duel de " + duelDe + ". Pas de combat cette fois !");
+            return true;
+        }
+
         bool   enRencontre = LireValeur(json, "enRencontre") == "true";
         string typeR       = LireValeur(json, "rencontreType");
 
@@ -100,6 +130,15 @@ public class CPHInline
         json = ModifierValeur(json, "rencontreExpire", "0",     false);
         json = ModifierValeur(json, "quetePauseDebut", "0",     false);
         File.WriteAllText(chemin, json);
+    }
+
+    // Insère un champ s'il est absent (anciens profils)
+    private string EnsureChamp(string json, string cle, string valeurDefaut, bool estTexte)
+    {
+        if (json.Contains("\"" + cle + "\"")) return json;
+        int    pos = json.LastIndexOf('}');
+        string val = estTexte ? "\"" + valeurDefaut + "\"" : valeurDefaut;
+        return json.Substring(0, pos) + ",\n  \"" + cle + "\": " + val + "\n}";
     }
 
     private string LireValeur(string json, string cle)

@@ -1,3 +1,5 @@
+// sb-action: attaquer boss
+// sb-subaction-id: aa9edde6-c023-4690-9467-5bcee670f942
 using System;
 using System.IO;
 

@@ -1,3 +1,5 @@
+// sb-action: !combat
+// sb-subaction-id: ca3cebb3-d828-40cd-bb92-eb65832a8fe0
 using System;
 using System.IO;
 

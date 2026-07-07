@@ -1,3 +1,5 @@
+// sb-action: !abandon
+// sb-subaction-id: 39e2f7b0-7a9a-46e0-94ab-462cebf90a24
 using System;
 using System.IO;
 

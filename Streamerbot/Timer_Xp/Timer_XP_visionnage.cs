@@ -1,3 +1,5 @@
+// sb-action: Timer XP Visionnage
+// sb-subaction-id: 6140f027-ffcd-4fe1-ab2f-e645764dfcde
 using System;
 using System.IO;
 

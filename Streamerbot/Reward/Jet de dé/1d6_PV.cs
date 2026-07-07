@@ -1,3 +1,5 @@
+// sb-action: Jet de dé - PV
+// sb-subaction-id: ac722527-c374-4c18-887a-610b8583fc3b
 using System;
 using System.IO;
 

@@ -1,3 +1,5 @@
+// sb-action: !acheter
+// sb-subaction-id: 63d0c115-412b-4b6e-b54a-4f9cd557cca8
 using System;
 using System.IO;
 

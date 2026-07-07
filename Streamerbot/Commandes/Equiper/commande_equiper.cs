@@ -1,3 +1,5 @@
+// sb-action: !equiper
+// sb-subaction-id: b66a7c17-cb60-40ab-b3ff-ef8cd90f8afd
 using System;
 using System.IO;
 

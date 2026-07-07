@@ -1,3 +1,5 @@
+// sb-action: QuestCheck
+// sb-subaction-id: e8d9be72-b002-4cac-879f-d34147361320
 using System;
 using System.IO;
 

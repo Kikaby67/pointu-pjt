@@ -1,3 +1,5 @@
+// sb-action: !choisirclasse
+// sb-subaction-id: a5149da3-43f8-4701-a962-61414b3a3082
 using System;
 using System.IO;
 

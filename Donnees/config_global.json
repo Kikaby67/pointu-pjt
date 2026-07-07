@@ -37,7 +37,7 @@
   "rencontre_taux_ennemi": 40,
   "rencontre_taux_allie": 30,
   "rencontre_expire_secondes": 120,
-  "quete_rencontre_intervalle_secondes": 180,
+  "quete_rencontre_intervalle_secondes": 300,
   "rencontre_ennemis": "Martre-Trojan,Sentinelle du Castor,Ombre de la mémoire,Drone-racine,Parasite de données,Sanglier-Crash,Taupe-Malware",
   "rencontre_mini_boss": "Insecte-Bug,Corbeau-Daemon,Castor-Rootkit,Loup-Firewall",
   "rencontre_boss": "Reine-Bug,Munin-Daemon,Hector-Pierre Castor,Fenrir-Firewall",
@@ -104,6 +104,11 @@
   "discuter_charisme_pct": 3,
   "discuter_min": 10,
   "discuter_max": 90,
+
+  "duel_expire_secondes": 60,
+  "duel_cooldown_secondes": 3600,
+  "duel_recompense_xp_gagnant": 100,
+  "duel_recompense_xp_perdant": 50,
 
   "creation_pv_de": 6,
   "creation_ca_de": 4,

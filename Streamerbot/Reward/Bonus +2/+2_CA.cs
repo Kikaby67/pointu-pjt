@@ -1,3 +1,5 @@
+// sb-action: Bonus de Stat - CA
+// sb-subaction-id: 94e407d8-eeb9-449a-a712-7006f625d138
 using System;
 using System.IO;
 

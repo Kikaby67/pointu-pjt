@@ -1,3 +1,5 @@
+// sb-action: Bonus de Stat - Attaque
+// sb-subaction-id: a0d1cb0d-d76f-42f0-a00d-96e331312224
 using System;
 using System.IO;
 

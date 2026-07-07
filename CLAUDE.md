@@ -808,6 +808,39 @@ Répondent aux offres interactives en quête. Vérifient `offreEnAttente` et `of
 Trigger : Command Triggered → !accepter / !refuser
 ```
 
+### `!duel @cible` → `Commandes/Duel/commande_duel.cs`
+Duel **amical** entre deux joueurs (aucune perte de PV). Le challenger pose un défi ; la cible répond via
+`!accepter` (résolution du combat) ou `!refuser` (annulation).
+
+**`!duel` (pose le défi)** — vérifie, dans l'ordre :
+- Les deux ont `classeChoisie == true`
+- Cible parsée depuis `args["rawInput"]` (`@` retiré), existe, **≠ soi-même**, pas déjà défiée (`duelDe` vivant)
+- Challenger hors cooldown (`duelCooldownFin`), sans défi sortant déjà en cours (`duelVers`, nettoyé si expiré)
+- Les deux « dans l'Antre » : `enQuete == false`, `enCombat == false`, `pvActuels > 0`
+- **Niveau** : `niveauCible == niveauChallenger` **ou** `niveauChallenger + 1` (même niveau ou 1 au-dessus)
+- Pose `duelDe`/`duelExpire` sur la cible + `duelVers` sur le challenger (`duel_expire_secondes`, 60s)
+
+**Résolution (dans `!accepter`, méthode `ResoudreDuel`)** — réutilise la formule de puissance de `!combat`
+(`ScorePuissance` = `combat_base_pct + Tranche(pv/ca/atk/mana/cha/agi/niveau) + (nbAtq-1)*combat_attaques_pct + items`,
+clampé `combat_plancher_joueur`..`combat_plafond_joueur`). Vainqueur tiré au sort :
+```
+probaChallenger = scoreA * 100 / (scoreA + scoreB)   →   rng.Next(100) < probaChallenger
+```
+- Vainqueur : `+duel_recompense_xp_gagnant` (100) XP, `duelsGagnes++`
+- Perdant : `+duel_recompense_xp_perdant` (50) XP, `duelsPerdus++`
+- Montée de niveau vérifiée pour les deux · marqueurs de duel nettoyés sur les deux profils
+- **Cooldown 1h posé sur le challenger uniquement à l'acceptation** (`duel_cooldown_secondes`) — refus/expiration ⇒ aucun cooldown
+- Re-validation « dans l'Antre » des deux au moment de l'acceptation (sinon duel annulé)
+
+**`!refuser`** : nettoie `duelDe`/`duelExpire` (cible) + `duelVers` (challenger), aucun cooldown.
+> Champs config : `config_global.json` (`duel_expire_secondes`, `duel_cooldown_secondes`,
+> `duel_recompense_xp_gagnant`, `duel_recompense_xp_perdant`).
+> Nouveaux champs JSON joueur (via `EnsureChamp`) : `duelDe`, `duelVers`, `duelExpire`, `duelCooldownFin`,
+> `duelsGagnes`, `duelsPerdus`.
+```
+Trigger : Command Triggered → !duel
+```
+
 ### Channel Point Rewards
 
 | Fichier | Reward Twitch | Coût | Logique |

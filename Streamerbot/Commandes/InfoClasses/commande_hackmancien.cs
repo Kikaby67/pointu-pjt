@@ -1,3 +1,5 @@
+// sb-action: !hackmancien
+// sb-subaction-id: 55b4ec62-c7b7-40a4-9ec9-d4d30c7f2dc9
 using System;
 using System.IO;
 

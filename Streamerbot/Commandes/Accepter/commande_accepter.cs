@@ -7,6 +7,8 @@ public class CPHInline
     private const string CONFIG_LEVEL    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_level.json";
     private const string CONFIG_ALLIES   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_allies.json";
     private const string CONFIG_ITEMS    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_items.json";
+    private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
+    private const string CONFIG_CLASSES  = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_classes.json";
 
     public bool Execute()
     {
@@ -21,6 +23,24 @@ public class CPHInline
 
         string json       = File.ReadAllText(cheminFichier);
         long   maintenant = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        // === Duel entre joueurs (hors quête) — prioritaire sur les rencontres alliées ===
+        json = EnsureChamp(json, "duelDe",     "", true);
+        json = EnsureChamp(json, "duelExpire", "0", false);
+        string duelDe = LireValeur(json, "duelDe");
+        if (duelDe != "" && duelDe != "0")
+        {
+            long dExp = long.Parse(LireValeur(json, "duelExpire"));
+            if (maintenant > dExp)
+            {
+                json = ModifierValeur(json, "duelDe",     "",  true);
+                json = ModifierValeur(json, "duelExpire", "0", false);
+                File.WriteAllText(cheminFichier, json);
+                CPH.SendMessage(nomJoueur + ", le défi en duel de " + duelDe + " a déjà expiré.");
+                return true;
+            }
+            return ResoudreDuel(cheminFichier, json, nomJoueur, duelDe, maintenant);
+        }
 
         bool   enRencontre = LireValeur(json, "enRencontre") == "true";
         string typeR       = LireValeur(json, "rencontreType");
@@ -151,6 +171,161 @@ public class CPHInline
         File.WriteAllText(cheminFichier, json);
         CPH.SendMessage(msgFinal + (enQuete ? " Ta quête reprend !" : ""));
         return true;
+    }
+
+    // Résout un duel amical accepté : compare la puissance des deux joueurs, applique XP + compteurs.
+    // nomJoueur = celui qui accepte (défié) · challenger = celui qui a lancé !duel
+    private bool ResoudreDuel(string cheminB, string jsonB, string cible, string challenger, long maintenant)
+    {
+        string cheminA = Path.Combine(DOSSIER_JOUEURS, challenger.ToLower() + ".json");
+        if (!File.Exists(cheminA))
+        {
+            jsonB = ModifierValeur(jsonB, "duelDe",     "",  true);
+            jsonB = ModifierValeur(jsonB, "duelExpire", "0", false);
+            File.WriteAllText(cheminB, jsonB);
+            CPH.SendMessage(cible + ", ton adversaire " + challenger + " est introuvable — duel annulé.");
+            return true;
+        }
+        string jsonA = File.ReadAllText(cheminA);
+
+        // Re-validation « dans l'Antre » des deux joueurs
+        string invalide = "";
+        if (LireValeur(jsonA, "enQuete") == "true" || LireValeur(jsonA, "enCombat") == "true" || int.Parse(LireValeur(jsonA, "pvActuels")) <= 0)
+            invalide = challenger + " n'est plus en état de se battre";
+        else if (LireValeur(jsonB, "enQuete") == "true" || LireValeur(jsonB, "enCombat") == "true" || int.Parse(LireValeur(jsonB, "pvActuels")) <= 0)
+            invalide = cible + " n'est plus en état de se battre";
+        if (invalide != "")
+        {
+            jsonA = EnsureChamp(jsonA, "duelVers", "", true);
+            jsonA = ModifierValeur(jsonA, "duelVers",   "",  true);
+            jsonB = ModifierValeur(jsonB, "duelDe",     "",  true);
+            jsonB = ModifierValeur(jsonB, "duelExpire", "0", false);
+            File.WriteAllText(cheminA, jsonA);
+            File.WriteAllText(cheminB, jsonB);
+            CPH.SendMessage("Duel annulé : " + invalide + ".");
+            return true;
+        }
+
+        string cfgG     = File.ReadAllText(CONFIG_GLOBAL);
+        string cfgCls   = File.ReadAllText(CONFIG_CLASSES);
+        string cfgItems = File.ReadAllText(CONFIG_ITEMS);
+
+        int scoreA = ScorePuissance(jsonA, cfgG, cfgCls, cfgItems);
+        int scoreB = ScorePuissance(jsonB, cfgG, cfgCls, cfgItems);
+
+        Random rng   = new Random();
+        int    probaA = scoreA * 100 / (scoreA + scoreB);
+        bool   challengerGagne = rng.Next(100) < probaA;
+
+        int xpG = int.Parse(LireValeur(cfgG, "duel_recompense_xp_gagnant"));
+        int xpP = int.Parse(LireValeur(cfgG, "duel_recompense_xp_perdant"));
+
+        jsonA = EnsureChamp(jsonA, "duelsGagnes",     "0", false);
+        jsonA = EnsureChamp(jsonA, "duelsPerdus",     "0", false);
+        jsonA = EnsureChamp(jsonA, "duelVers",        "",  true);
+        jsonA = EnsureChamp(jsonA, "duelCooldownFin", "0", false);
+        jsonB = EnsureChamp(jsonB, "duelsGagnes",     "0", false);
+        jsonB = EnsureChamp(jsonB, "duelsPerdus",     "0", false);
+
+        string gagnant, perdant;
+        if (challengerGagne)
+        {
+            gagnant = challenger; perdant = cible;
+            jsonA = AjouterValeur(jsonA, "experience", xpG); jsonA = AjouterValeur(jsonA, "duelsGagnes", 1);
+            jsonB = AjouterValeur(jsonB, "experience", xpP); jsonB = AjouterValeur(jsonB, "duelsPerdus", 1);
+        }
+        else
+        {
+            gagnant = cible; perdant = challenger;
+            jsonB = AjouterValeur(jsonB, "experience", xpG); jsonB = AjouterValeur(jsonB, "duelsGagnes", 1);
+            jsonA = AjouterValeur(jsonA, "experience", xpP); jsonA = AjouterValeur(jsonA, "duelsPerdus", 1);
+        }
+
+        // Cooldown validé uniquement maintenant que le duel a été accepté (sur le challenger)
+        long cdFin = maintenant + long.Parse(LireValeur(cfgG, "duel_cooldown_secondes"));
+        jsonA = ModifierValeur(jsonA, "duelCooldownFin", cdFin.ToString(), false);
+
+        // Nettoyage des marqueurs de duel
+        jsonA = ModifierValeur(jsonA, "duelVers",   "",  true);
+        jsonB = ModifierValeur(jsonB, "duelDe",     "",  true);
+        jsonB = ModifierValeur(jsonB, "duelExpire", "0", false);
+
+        // Montée de niveau après gain d'XP
+        jsonA = VerifierMonteeNiveau(jsonA, challenger);
+        jsonB = VerifierMonteeNiveau(jsonB, cible);
+
+        File.WriteAllText(cheminA, jsonA);
+        File.WriteAllText(cheminB, jsonB);
+
+        CPH.SendMessage("⚔️ DUEL — " + challenger + " (puissance " + scoreA + ") vs " + cible + " (puissance " + scoreB
+            + ") → 🏆 " + gagnant + " l'emporte ! +" + xpG + " XP pour " + gagnant + ", +" + xpP + " XP pour " + perdant + ".");
+        return true;
+    }
+
+    // Puissance de combat d'un joueur (formule !combat, sans palier ennemi)
+    private int ScorePuissance(string json, string cfgG, string cfgCls, string cfgItems)
+    {
+        int pvMax   = int.Parse(LireValeur(json, "pvMax"));
+        int caEff   = int.Parse(LireValeur(json, "classeArmure")) + GetBonusItems(json, cfgItems, "caBonus");
+        int atkEff  = int.Parse(LireValeur(json, "bonusAttaque")) + GetBonusItems(json, cfgItems, "attaqueBonus");
+        int manaEff = int.Parse(LireValeur(json, "manaMax"))      + GetBonusItems(json, cfgItems, "manaBonus");
+        int chaEff  = int.Parse(LireValeur(json, "charisme"))     + GetBonusItems(json, cfgItems, "charismeBonus");
+        int agi     = int.Parse(LireValeur(json, "agilite"));
+        int niveau  = int.Parse(LireValeur(json, "niveau"));
+
+        string classe     = LireValeur(json, "classe");
+        string sousClasse = LireValeur(json, "sousClasse");
+        int nbAtq = (sousClasse != "" && sousClasse != "0") ? int.Parse(LireValeur(cfgCls, sousClasse + "_nbAttaques")) : 0;
+        if (nbAtq == 0) nbAtq = int.Parse(LireValeur(cfgCls, classe + "_nbAttaques"));
+        if (nbAtq == 0) nbAtq = 1;
+
+        int score = int.Parse(LireValeur(cfgG, "combat_base_pct"))
+            + Tranche(cfgG, pvMax,   "pv")
+            + Tranche(cfgG, caEff,   "ca")
+            + Tranche(cfgG, atkEff,  "atk")
+            + Tranche(cfgG, manaEff, "mana")
+            + Tranche(cfgG, chaEff,  "cha")
+            + Tranche(cfgG, agi,     "agi")
+            + Tranche(cfgG, niveau,  "niveau")
+            + (nbAtq - 1) * int.Parse(LireValeur(cfgG, "combat_attaques_pct"));
+
+        return Clamp(score, int.Parse(LireValeur(cfgG, "combat_plancher_joueur")), int.Parse(LireValeur(cfgG, "combat_plafond_joueur")));
+    }
+
+    private int Tranche(string cfgG, int valeur, string prefixe)
+    {
+        int refv = int.Parse(LireValeur(cfgG, "combat_" + prefixe + "_ref"));
+        int tr   = int.Parse(LireValeur(cfgG, "combat_" + prefixe + "_tranche"));
+        int pct  = int.Parse(LireValeur(cfgG, "combat_" + prefixe + "_pct"));
+        if (tr == 0) tr = 1;
+        return ((valeur - refv) / tr) * pct;
+    }
+
+    private int GetBonusItems(string json, string cfgItems, string stat)
+    {
+        string[] slots = { "armeEquipee", "armureEquipee", "accessoireEquipe" };
+        int total = 0;
+        foreach (string slot in slots)
+        {
+            string item = LireValeur(json, slot);
+            if (item != "" && item != "0")
+                total += int.Parse(LireValeur(cfgItems, item + "_" + stat));
+        }
+        return total;
+    }
+
+    private int Clamp(int v, int min, int max)
+    {
+        return v < min ? min : (v > max ? max : v);
+    }
+
+    // Insère un champ s'il est absent (anciens profils)
+    private string EnsureChamp(string json, string cle, string valeurDefaut, bool estTexte)
+    {
+        if (json.Contains("\"" + cle + "\"")) return json;
+        int    pos = json.LastIndexOf('}');
+        string val = estTexte ? "\"" + valeurDefaut + "\"" : valeurDefaut;
+        return json.Substring(0, pos) + ",\n  \"" + cle + "\": " + val + "\n}";
     }
 
     private string VerifierMonteeNiveau(string json, string nomJoueur)

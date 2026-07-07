@@ -1,3 +1,5 @@
+// sb-action: !spawnboss
+// sb-subaction-id: b6bcdf59-ce9e-453e-aa3a-e0f9bd50ce7a
 using System;
 using System.IO;
 

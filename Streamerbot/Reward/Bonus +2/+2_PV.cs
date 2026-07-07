@@ -1,3 +1,5 @@
+// sb-action: Bonus de Stat - PV
+// sb-subaction-id: ff382363-66c3-4b87-88e8-247596fdb01a
 using System;
 using System.IO;
 

@@ -1,3 +1,5 @@
+// sb-action: !hexadecimeur
+// sb-subaction-id: 0a9d867b-af44-4e63-9fd7-2b469006ff47
 using System;
 using System.IO;
 

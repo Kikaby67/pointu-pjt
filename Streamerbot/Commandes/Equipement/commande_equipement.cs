@@ -1,3 +1,5 @@
+// sb-action: !equipement
+// sb-subaction-id: 4507f385-9ea8-4b6c-a29b-fd56da795acd
 using System;
 using System.IO;
 public class CPHInline

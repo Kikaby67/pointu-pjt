@@ -1,3 +1,5 @@
+// sb-action: !repos
+// sb-subaction-id: f840b5da-6911-4752-844a-a19aad38c8df
 using System;
 using System.IO;
 
