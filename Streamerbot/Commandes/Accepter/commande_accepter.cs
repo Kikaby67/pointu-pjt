@@ -1,3 +1,5 @@
+// sb-action: !accepter
+// sb-subaction-id: 65fa667b-b4ef-47dc-a78a-f916b311c8fe
 using System;
 using System.IO;
 

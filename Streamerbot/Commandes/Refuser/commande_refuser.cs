@@ -1,3 +1,5 @@
+// sb-action: !refuser
+// sb-subaction-id: 89d56aa8-d537-4619-8e08-dffbbdde130e
 using System;
 using System.IO;
 

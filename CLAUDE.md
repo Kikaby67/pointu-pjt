@@ -7,7 +7,7 @@
 ## Vue d'ensemble du projet
 
 **Pointu-PJT** est un mini-jeu RPG textuel dans le chat Twitch.
-Les viewers tapent des commandes (`!rejoindre`, `!quete`, `!attaque`...).
+Les viewers tapent des commandes (`!rejoindre`, `!quete`, `!combat`...).
 Chaque joueur a un fichier JSON sur le disque local. Pas de base de données.
 
 **Machine** : Windows 11, AMD Ryzen 5 5600X, 32 Go RAM
@@ -46,9 +46,7 @@ Pointu-PJT/
 │   │   ├── commande_combat.cs   # !combat (rencontre + mini-boss)
 │   │   ├── commande_discuter.cs # !discuter (rencontre)
 │   │   ├── combat_fuir.cs       # !fuir (rencontre)
-│   │   ├── combat_soin.cs       # !soin (HORS combat)
-│   │   ├── combat_attaque.cs    # !attaque (DÉPRÉCIÉ → redirige)
-│   │   └── combat_defense.cs    # !defense (DÉPRÉCIÉ → redirige)
+│   │   └── combat_soin.cs       # !soin (HORS combat)
 │   ├── Boss/                     # Boss communautaire (tour par tour, étape etat_global)
 │   │   ├── spawn_boss.cs        # !spawnboss (streamer) → recrutement
 │   │   ├── commande_arene.cs    # !arene → rejoindre le recrutement
@@ -719,9 +717,6 @@ Achète une **Potion** au marchand. Actif tant que `offreEnAttente == "marchand_
 ```
 Trigger : Command Triggered → !acheter
 ```
-
-> ⚠️ **Déprécié** : `combat_attaque.cs` (`!attaque`) et `combat_defense.cs` (`!defense`) ne contiennent plus qu'un
-> message de redirection vers `!combat`/`!discuter`/`!fuir`. Triggers à retirer quand plus personne ne les tape.
 
 ### `!inventaire` → `Commandes/Inventaire/commande_inventaire.cs`
 Affiche le sac et les slots équipés en 2 messages.
