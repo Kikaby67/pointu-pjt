@@ -1,8 +1,8 @@
 {
   "nomJoueur": "tadeworking",
-  "ram": 174,
+  "ram": 200,
   "niveau": 4,
-  "experience": 4522,
+  "experience": 4732,
   "classeChoisie": true,
   "classe": "Cryptolame",
   "sousClasseChoisie": false,
@@ -17,20 +17,20 @@
   "charisme": 11,
   "enCombat": false,
   "enQuete": false,
-  "queteId": "artefact_02",
+  "queteId": "service_03",
   "queteTicksRestants": 0,
-  "queteDernierTick": 1782936647,
-  "queteTotalPause": 121,
+  "queteDernierTick": 1783525680,
+  "queteTotalPause": 849,
   "quetePauseDebut": 0,
   "queteCooldownFin": 0,
   "enRencontre": false,
   "rencontreType": "",
-  "dernierCheckRencontre": 1782938161,
+  "dernierCheckRencontre": 1783527800,
   "reposCooldownFin": 1781451597,
   "queteEventsUsed": 0,
-  "offreValeur": 0,
+  "offreValeur": 6,
   "combatActuel": {
-    "ennemiNom": "Ombre de la mémoire",
+    "ennemiNom": "Drone-racine",
     "ennemiPVActuels": 0,
     "buffActif": false,
     "protectionActive": false,
@@ -43,11 +43,15 @@
   "statistiques": {
     "combatsGagnes": 16,
     "combatsPerdus": 3,
-    "quetesTerminees": 21
+    "quetesTerminees": 24
   },
   "agilite": 14,
   "compagnonActif": "",
   "rencontreExpire": 0
 ,
-  "derniereActivite": 1782936759
+  "derniereActivite": 1783525772
+,
+  "duelDe": ""
+,
+  "duelExpire": 0
 }

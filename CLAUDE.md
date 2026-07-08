@@ -58,7 +58,7 @@ Pointu-PJT/
 │   └── Reward/
 │       ├── Jet de dé/           # 1d6_PV.cs, 1d4_CA.cs
 │       ├── Bonus +2/            # +2_PV.cs, +2_CA.cs, +2_Attaque.cs
-│       └── SubGoal/             # suggestion_subgoal.cs (Suggestion de Sub Goal → SubGoal.txt)
+│       └── DonationGoal/        # suggestion_donationgoal.cs (Suggestion de Donation Goal → DonationGoal.txt)
 ├── Donnees/
 │   ├── joueurs/                 # Un .json par joueur (ex: kikabygaming.json)
 │   ├── config_classes.json      # ★ Source unique : stats classes + sous-classes
@@ -850,7 +850,7 @@ Trigger : Command Triggered → !duel
 | `+2_PV.cs` | ⭐ Boost +2 — PV | 20 000 | pvMax += 2 (stack permanent) |
 | `+2_CA.cs` | ⭐ Boost +2 — CA | 20 000 | CA += 2 |
 | `+2_Attaque.cs` | ⭐ Boost +2 — Attaque | 20 000 | bonusAttaque += 2 |
-| `suggestion_subgoal.cs` | 💡 Suggestion de Sub Goal | 1 | Append de la saisie viewer dans un fichier texte |
+| `suggestion_donationgoal.cs` | 💡 Suggestion de Donation Goal | 1 | Append de la saisie viewer dans un fichier texte |
 
 > Jet de dé : repart de la BASE classe depuis config, ne stack pas.
 > Boost +2 : s'empile sur tout.
@@ -858,10 +858,10 @@ Trigger : Command Triggered → !duel
 Trigger : Channel Point Reward (un fichier par reward)
 ```
 
-**`suggestion_subgoal.cs` → `Reward/SubGoal/`** — récompense **silencieuse** (aucun message chat).
-- Reward Twitch avec **saisie de texte obligatoire** (coût 1). Action SB nommée `Suggestion de Sub Goal`.
+**`suggestion_donationgoal.cs` → `Reward/DonationGoal/`** — récompense **silencieuse** (aucun message chat).
+- Reward Twitch avec **saisie de texte obligatoire** (coût 1). Action SB nommée `Suggestion de Donation Goal`.
 - Lit la saisie via `args["rawInput"]` (repli `args["message"]`), aplatit les retours à la ligne.
-- **Append** dans `C:\Users\Florian\Desktop\Stream\Sub goal\SubGoal.txt` (dossier + fichier créés au besoin).
+- **Append** dans `C:\Users\Florian\Desktop\Stream\Donation goal\DonationGoal.txt` (dossier + fichier créés au besoin).
 - Format d'une ligne : `AAAA-MM-JJ HH:MM | pseudo : suggestion`. Les échanges suivants s'ajoutent à la suite.
 
 ### `Timer_XP_Visionnage.cs` + `tracker_activite.cs` — Timer 15 min

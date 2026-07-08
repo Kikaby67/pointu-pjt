@@ -1,8 +1,8 @@
 {
   "nomJoueur": "dada7988",
-  "ram": 54,
+  "ram": 55,
   "niveau": 3,
-  "experience": 1501,
+  "experience": 1511,
   "classeChoisie": true,
   "classe": "Cryptolame",
   "sousClasseChoisie": false,
@@ -18,17 +18,17 @@
   "agilite": 14,
   "enCombat": false,
   "enQuete": false,
-  "queteId": "service_02",
+  "queteId": "artefact_05",
   "queteTicksRestants": 0,
-  "queteDernierTick": 1783267031,
-  "queteTotalPause": 242,
+  "queteDernierTick": 1783529002,
+  "queteTotalPause": 0,
   "quetePauseDebut": 0,
   "queteCooldownFin": 0,
   "enRencontre": false,
   "rencontreType": "",
   "rencontreExpire": 0,
   "compagnonActif": "",
-  "dernierCheckRencontre": 1783268249,
+  "dernierCheckRencontre": 1783529305,
   "reposCooldownFin": 1782651845,
   "queteEventsUsed": 0,
   "offreValeur": 5,
@@ -46,8 +46,8 @@
   "statistiques": {
     "combatsGagnes": 2,
     "combatsPerdus": 2,
-    "quetesTerminees": 5
+    "quetesTerminees": 6
   }
 ,
-  "derniereActivite": 1783268322
+  "derniereActivite": 1783529002
 }

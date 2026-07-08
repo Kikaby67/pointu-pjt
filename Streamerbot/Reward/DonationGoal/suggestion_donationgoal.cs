@@ -1,11 +1,11 @@
-// sb-action: Suggestion de Sub Goal
+// sb-action: Suggestion de Donation Goal
 // sb-subaction-id: 3f6f6bb5-19dc-43c0-8e47-740b7a4f584f
 using System;
 using System.IO;
 
 public class CPHInline
 {
-    private const string FICHIER_SUBGOAL = @"C:\Users\Florian\Desktop\Stream\Sub goal\SubGoal.txt";
+    private const string FICHIER_DONATIONGOAL = @"C:\Users\Florian\Desktop\Stream\Donation goal\DonationGoal.txt";
 
     public bool Execute()
     {
@@ -25,9 +25,9 @@ public class CPHInline
         if (suggestion == "") return true; // aucun texte → rien à écrire
 
         // Append : chaque nouvelle suggestion s'ajoute à la suite (dossier + fichier créés s'ils manquent).
-        Directory.CreateDirectory(Path.GetDirectoryName(FICHIER_SUBGOAL));
+        Directory.CreateDirectory(Path.GetDirectoryName(FICHIER_DONATIONGOAL));
         string ligne = DateTime.Now.ToString("yyyy-MM-dd HH:mm") + " | " + user + " : " + suggestion + Environment.NewLine;
-        File.AppendAllText(FICHIER_SUBGOAL, ligne);
+        File.AppendAllText(FICHIER_DONATIONGOAL, ligne);
 
         return true; // récompense silencieuse : aucun message dans le chat
     }
