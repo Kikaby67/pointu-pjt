@@ -1,0 +1,38 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Kika-sync : dernière save (A)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/Tools/kika_sync.py", "--last", "--reload", "A"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Kika-sync : tout le dossier (A)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/Tools/kika_sync.py", "--once", "--reload", "A"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Kika-sync : docteur",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/Tools/kika_sync.py", "--doctor"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Kika-sync : vérifier le code (dernière save)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/Tools/kika_sync.py", "--compile-check", "--last"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    }
+  ]
+}

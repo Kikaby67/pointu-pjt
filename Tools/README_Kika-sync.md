@@ -37,10 +37,33 @@ Double-clique sur **`Lancer Kika-sync.bat`** (ou `python kika_sync_gui.py`).
 - **🔍 Scanner les doublons** → analyse `actions.json` et signale les actions avec plusieurs
   sous-actions C# ou des GUID partagés (`--check-duplicates`, lecture seule).
 
-Plus : choix du mode reload **A / B**, **🏷️ Écrire les en-têtes** (auto-map), **▶ Surveillance auto**,
-**■ Stop**, journal en direct + **Ouvrir le log**.
+**Rangée sync** : **🔀 Modifiés (git)** (pousse ce qui a changé depuis le dernier commit),
+**🏷️ Écrire les en-têtes**, **▶ Surveillance auto**, **■ Stop**.
+
+**Rangée diagnostics & sécurité** :
+- **🩺 Docteur** — désynchronisés / non mappés / orphelins / doublons, d'un coup d'œil.
+- **👁️ Aperçu diff** — ce qui changerait (local → SB) sans rien écrire.
+- **✔️ Vérifier le code** — compile la dernière save avec Roslyn (dotnet) → attrape les vraies erreurs C#.
+- **🗂 Backups** / **♻️ Restaurer** — liste et restaure un `actions.json` sauvegardé (SB fermé).
+
+Options : mode reload **A / B**, case **verrouiller**, case **vérif compile après relance (A)**.
+Pastille **● Streamer.bot actif / ○ arrêté** en direct, **son** + bannière colorée à la fin, garde-fou
+si tu lances un patch en Mode B alors que SB tourne.
 
 Tout le reste de ce README décrit la version ligne de commande (identique sous le capot).
+
+## Intégration VS Code
+
+Le repo fournit `.vscode/tasks.json` : **`Ctrl+Shift+B`** synchronise la **dernière save** (Mode A)
+sans quitter l'éditeur. Autres tâches (menu *Terminal → Run Task…*) : tout le dossier, docteur,
+vérifier le code.
+
+## Sécurité — pré-vol C#
+
+Avant chaque push, Kika-sync **valide** le `.cs` (équilibre accolades/parenthèses, présence de
+`CPHInline`/`Execute`). Un fichier invalide est **bloqué** (pas poussé) — car un seul `.cs` cassé
+empêche SB de compiler **toutes** ses actions au démarrage. `--no-lint` pour désactiver.
+Le **compile-check** (Roslyn, optionnel) va plus loin : erreurs de type, variables non déclarées, etc.
 
 ## Installation
 
@@ -113,11 +136,18 @@ python kika_sync.py --reload B --lock
 | `--reload A\|B` | force le mode reload pour cette exécution |
 | `--once` | synchronise tout le dossier (tous les `.cs`) puis quitte |
 | `--last` | synchronise le `.cs` modifié le plus récemment puis quitte |
-| `--check-duplicates` | scanne `actions.json` et signale les doublons de sous-actions C# (lecture seule) |
+| `--changed` | synchronise les `.cs` modifiés depuis le dernier commit (git) |
 | `--file CHEMIN` | patch un seul `.cs` puis quitte |
-| `--discover` | propose un mapping par similarité de code (n'écrit rien) |
-| `--discover --write` | + insère les en-têtes pour les matchs sûrs (≥ 0.97) |
+| `--doctor` | diagnostic : désync / non mappés / orphelins / doublons (lecture seule) |
+| `--diff` | aperçu des écarts local → SB (lecture seule) |
+| `--check-duplicates` | signale les actions à >1 sous-action C# ou GUID partagés (lecture seule) |
+| `--compile-check [--file X\|--last]` | compile le(s) `.cs` avec Roslyn (dotnet) et liste les erreurs |
+| `--list-backups` | liste les backups horodatés de `actions.json` |
+| `--restore [N]` | restaure le backup N (0 = le plus récent), **SB fermé** |
+| `--discover` / `--discover --write` | mapping par similarité / + insère les en-têtes sûrs (≥ 0.97) |
 | `--lock` | mode B : `actions.json` en lecture seule après patch |
+| `--verify` | mode A : scanne le log SB après relance pour détecter une erreur de compilation |
+| `--no-lint` | désactive la pré-vérification C# (déconseillé) |
 
 ## Reload : A ou B ? (⭐ lis ça)
 

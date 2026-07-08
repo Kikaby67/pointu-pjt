@@ -15,7 +15,12 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
+
+try:
+    import winsound  # Windows uniquement — notification sonore
+except ImportError:
+    winsound = None
 
 HERE      = os.path.dirname(os.path.abspath(__file__))
 KIKA_SYNC = os.path.join(HERE, "kika_sync.py")
@@ -59,11 +64,12 @@ class App:
         self.root = root
         self.proc = None
         self.watching = False
+        self.had_error = False
         self.q = queue.Queue()
 
         root.title("Kika-sync — Streamer.bot")
-        root.geometry("900x600")
-        root.minsize(720, 500)
+        root.geometry("900x620")
+        root.minsize(760, 540)
         root.configure(bg=BG)
 
         self._init_style()
@@ -87,6 +93,9 @@ class App:
         self.lock = tk.BooleanVar(value=False)
         self.chk_lock = ttk.Checkbutton(opt, text="verrouiller", variable=self.lock)
         self.chk_lock.pack(side="left")
+        self.verify = tk.BooleanVar(value=False)
+        ttk.Checkbutton(opt, text="vérif compile après relance (A)",
+                        variable=self.verify).pack(side="left", padx=(10, 0))
 
         ttk.Label(root, style="Kika.Dim.TLabel", padding=(16, 4),
                   text="Mode A = ferme et relance Streamer.bot tout seul (recommandé).  "
@@ -100,12 +109,12 @@ class App:
 
         self.btn_all = ttk.Button(prim, text="🗂️  Synchroniser\ntout le dossier",
                                   style="Big.TButton",
-                                  command=lambda: self.run(["--once"] + self._reload_args()))
+                                  command=lambda: self.sync(["--once"]))
         self.btn_all.grid(row=0, column=0, sticky="ew", padx=(0, 6))
 
         self.btn_last = ttk.Button(prim, text="💾  Synchroniser\nla dernière save",
                                    style="Big.TButton",
-                                   command=lambda: self.run(["--last"] + self._reload_args()))
+                                   command=lambda: self.sync(["--last"]))
         self.btn_last.grid(row=0, column=1, sticky="ew", padx=6)
 
         self.btn_dup = ttk.Button(prim, text="🔍  Scanner\nles doublons",
@@ -113,19 +122,43 @@ class App:
                                   command=lambda: self.run(["--check-duplicates"]))
         self.btn_dup.grid(row=0, column=2, sticky="ew", padx=(6, 0))
 
-        # ---- Actions secondaires ----
+        # ---- Rangée 1 : sync + surveillance ----
         sec = ttk.Frame(root, padding=(14, 2))
         sec.pack(fill="x")
-        self.btn_stamp = ttk.Button(sec, text="🏷️ Écrire les en-têtes (auto-map)",
+        self.btn_changed = ttk.Button(sec, text="🔀 Modifiés (git)",
+                                      style="Ghost.TButton",
+                                      command=lambda: self.sync(["--changed"]))
+        self.btn_changed.pack(side="left", padx=(0, 6))
+        self.btn_stamp = ttk.Button(sec, text="🏷️ Écrire les en-têtes",
                                     style="Ghost.TButton",
                                     command=lambda: self.run(["--discover", "--write"]))
-        self.btn_stamp.pack(side="left", padx=(0, 6))
+        self.btn_stamp.pack(side="left", padx=6)
         self.btn_watch = ttk.Button(sec, text="▶ Surveillance auto",
                                     style="Ghost.TButton", command=self.toggle_watch)
         self.btn_watch.pack(side="left", padx=6)
         self.btn_stop = ttk.Button(sec, text="■ Stop", style="Ghost.TButton",
                                    command=self.stop, state="disabled")
         self.btn_stop.pack(side="left", padx=6)
+
+        # ---- Rangée 2 : diagnostics & sécurité ----
+        diag = ttk.Frame(root, padding=(14, 2))
+        diag.pack(fill="x")
+        self.btn_doctor = ttk.Button(diag, text="🩺 Docteur", style="Ghost.TButton",
+                                     command=lambda: self.run(["--doctor"]))
+        self.btn_doctor.pack(side="left", padx=(0, 6))
+        self.btn_diff = ttk.Button(diag, text="👁️ Aperçu diff", style="Ghost.TButton",
+                                   command=lambda: self.run(["--diff"]))
+        self.btn_diff.pack(side="left", padx=6)
+        self.btn_compile = ttk.Button(diag, text="✔️ Vérifier le code (dernière save)",
+                                      style="Ghost.TButton",
+                                      command=lambda: self.run(["--compile-check", "--last"]))
+        self.btn_compile.pack(side="left", padx=6)
+        self.btn_backups = ttk.Button(diag, text="🗂 Backups", style="Ghost.TButton",
+                                      command=lambda: self.run(["--list-backups"]))
+        self.btn_backups.pack(side="left", padx=6)
+        self.btn_restore = ttk.Button(diag, text="♻️ Restaurer", style="Ghost.TButton",
+                                      command=self.restore)
+        self.btn_restore.pack(side="left", padx=6)
 
         # ---- Journal ----
         logframe = ttk.Frame(root, padding=(14, 8))
@@ -148,7 +181,8 @@ class App:
         bottom = ttk.Frame(root, padding=(16, 8))
         bottom.pack(fill="x")
         self.status = tk.StringVar(value="Prêt.")
-        ttk.Label(bottom, textvariable=self.status, style="Kika.Dim.TLabel").pack(side="left")
+        self.status_lbl = ttk.Label(bottom, textvariable=self.status, style="Kika.Dim.TLabel")
+        self.status_lbl.pack(side="left")
         ttk.Button(bottom, text="Vider le journal", style="Ghost.TButton",
                    command=self.clear_log).pack(side="right")
         ttk.Button(bottom, text="Ouvrir le log", style="Ghost.TButton",
@@ -218,8 +252,43 @@ class App:
         self.chk_lock.configure(state="normal" if self.mode.get() == "B" else "disabled")
 
     def _action_buttons(self):
-        return [self.btn_all, self.btn_last, self.btn_dup,
-                self.btn_stamp, self.btn_watch]
+        return [self.btn_all, self.btn_last, self.btn_dup, self.btn_changed,
+                self.btn_stamp, self.btn_watch, self.btn_doctor, self.btn_diff,
+                self.btn_compile, self.btn_backups, self.btn_restore]
+
+    def sync(self, base_args):
+        """Lance une synchro (avec reload) + garde-fou Mode B/SB actif."""
+        if self.mode.get() == "B" and SB_IS_RUNNING and SB_IS_RUNNING():
+            if not messagebox.askyesno(
+                    "Mode B + Streamer.bot actif",
+                    "Streamer.bot tourne et tu es en Mode B :\n"
+                    "tes modifs seront ÉCRASÉES quand SB se fermera.\n\n"
+                    "Le Mode A (recommandé) ferme et relance SB tout seul.\n\n"
+                    "Continuer quand même en Mode B ?"):
+                self.status.set("Annulé — passe en Mode A ?")
+                return
+        extra = ["--verify"] if self.verify.get() else []
+        self.run(base_args + self._reload_args() + extra)
+
+    def restore(self):
+        from tkinter import simpledialog
+        if SB_IS_RUNNING and SB_IS_RUNNING():
+            messagebox.showwarning(
+                "Streamer.bot actif",
+                "Ferme Streamer.bot avant de restaurer (sinon il réécrasera "
+                "actions.json en se fermant).")
+            return
+        n = simpledialog.askinteger(
+            "Restaurer un backup",
+            "Index du backup à restaurer\n(0 = le plus récent — vois la liste "
+            "avec le bouton « Backups ») :",
+            initialvalue=0, minvalue=0, parent=self.root)
+        if n is None:
+            return
+        if messagebox.askyesno("Confirmer",
+                               f"Restaurer le backup #{n} par-dessus actions.json ?\n"
+                               "(l'état actuel est sauvegardé avant)"):
+            self.run(["--restore", str(n)])
 
     def _set_busy(self, busy):
         for b in self._action_buttons():
@@ -241,6 +310,8 @@ class App:
         elif " OK  " in line or "MATCH" in line or "patché" in line \
                 or "relancé" in line or "Aucun doublon" in line or "✅" in line:
             tag = "ok"
+        if tag == "err":
+            self.had_error = True
         self._log(line, tag)
 
     def clear_log(self):
@@ -294,6 +365,8 @@ class App:
             return
 
         self.watching = watch
+        self.had_error = False
+        self.status_lbl.configure(foreground=FG_DIM)
         self._set_busy(True)
         self.status.set("Surveillance en cours…" if watch else "Traitement…")
         threading.Thread(target=self._reader, args=(self.proc,), daemon=True).start()
@@ -327,7 +400,19 @@ class App:
         self.watching = False
         self._set_busy(False)
         self.btn_watch.configure(text="▶ Surveillance auto")
-        self.status.set("Surveillance arrêtée." if was_watch else "Terminé.")
+        if was_watch:
+            self.status.set("Surveillance arrêtée.")
+            self.status_lbl.configure(foreground=FG_DIM)
+        elif self.had_error:
+            self.status.set("⚠️  Terminé avec des erreurs — voir le journal.")
+            self.status_lbl.configure(foreground=RED)
+            if winsound:
+                winsound.MessageBeep(winsound.MB_ICONHAND)
+        else:
+            self.status.set("✅  Terminé.")
+            self.status_lbl.configure(foreground=GREEN)
+            if winsound:
+                winsound.MessageBeep(winsound.MB_OK)
 
     # ------------------ boutons ------------------
     def toggle_watch(self):

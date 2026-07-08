@@ -48,6 +48,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -87,6 +88,13 @@ if os.path.exists(_local):
 
 BACKUP_DIR = os.path.join(os.path.dirname(ACTIONS_JSON), "_kikasync_backups")
 LOG_FILE   = os.path.join(_HERE, "kika_sync.log")
+
+# Derives : logs SB (…\Streamer.bot\logs) et racine du repo (parent de Streamerbot\)
+SB_LOGS_DIR = os.path.join(os.path.dirname(os.path.dirname(ACTIONS_JSON)), "logs")
+REPO_ROOT   = os.path.dirname(WATCH_DIR)
+
+DO_LINT   = True     # pre-verification C# (bloque un fichier invalide) ; --no-lint pour couper
+DO_VERIFY = False    # verif post-relance (scan log SB) apres un reload Mode A ; --verify
 # ======================================================================
 
 # Console UTF-8 (evite le mojibake des accents/emoji sous Windows)
@@ -344,6 +352,15 @@ def patch_files(paths, reload_mode, lock):
             log(f"  Lecture .cs impossible {path} : {e}", "ERROR")
             continue
 
+        # Pré-vol : un .cs invalide (accolades, etc.) casse la compilation de TOUT
+        # SB au démarrage → on le bloque plutôt que de le pousser.
+        if DO_LINT:
+            ok, msg = lint_csharp(text)
+            if not ok:
+                log(f"  BLOQUÉ {os.path.basename(path)} : C# invalide — {msg}. "
+                    f"Non poussé (protège SB).", "ERROR")
+                continue
+
         action, sa, need_stamp = resolve_target(obj, path, text, safe=safe)
         if sa is None:
             continue
@@ -384,7 +401,10 @@ def patch_files(paths, reload_mode, lock):
 
     # Reload
     if reload_mode == "A":
+        since = datetime.datetime.now()
         launch_streamerbot()
+        if DO_VERIFY:
+            verify_after_launch(since)
     else:
         log("Mode B : modif ECRITE mais NON APPLIQUEE. Relance Streamer.bot "
             "pour recompiler. Ne sauvegarde rien cote SB d'ici la (risque d'ecrasement).",
@@ -543,6 +563,352 @@ def check_duplicates():
             f"Supprime les sous-actions en trop dans Streamer.bot (garde la bonne).", "WARN")
 
 
+# ------------------------- helpers communs -------------------------
+def all_cs_files():
+    out = []
+    for root, _d, names in os.walk(WATCH_DIR):
+        for n in names:
+            if n.lower().endswith(".cs"):
+                out.append(os.path.join(root, n))
+    return out
+
+
+# ------------------------- lint C# (pre-vol) -------------------------
+def _strip_cs(text):
+    """Retire commentaires, chaines et char-literals — pour compter les
+    accolades sans faux positif (ex: le char literal '}')."""
+    out = []
+    i, n = 0, len(text)
+    while i < n:
+        two = text[i:i + 2]
+        c = text[i]
+        if two == "//":
+            j = text.find("\n", i)
+            i = n if j == -1 else j
+        elif two == "/*":
+            j = text.find("*/", i + 2)
+            i = n if j == -1 else j + 2
+        elif c == "@" and i + 1 < n and text[i + 1] == '"':      # verbatim @"..."
+            i += 2
+            while i < n:
+                if text[i] == '"':
+                    if i + 1 < n and text[i + 1] == '"':
+                        i += 2; continue
+                    i += 1; break
+                i += 1
+            out.append(" ")
+        elif c == '"':                                           # "..."
+            i += 1
+            while i < n:
+                if text[i] == "\\":
+                    i += 2; continue
+                if text[i] == '"':
+                    i += 1; break
+                i += 1
+            out.append(" ")
+        elif c == "'":                                           # '.'
+            i += 1
+            while i < n:
+                if text[i] == "\\":
+                    i += 2; continue
+                if text[i] == "'":
+                    i += 1; break
+                i += 1
+            out.append(" ")
+        else:
+            out.append(c); i += 1
+    return "".join(out)
+
+
+def lint_csharp(text):
+    """(ok, message) — verif structurelle rapide, zero dependance."""
+    s = _strip_cs(text)
+    for o, c, nom in (("{", "}", "accolades"), ("(", ")", "parenthèses"),
+                      ("[", "]", "crochets")):
+        if s.count(o) != s.count(c):
+            return False, f"{nom} déséquilibrées ({s.count(o)} '{o}' / {s.count(c)} '{c}')"
+    if "class CPHInline" not in text:
+        return False, "classe 'CPHInline' absente"
+    if "Execute" not in text:
+        return False, "méthode 'Execute' absente"
+    return True, ""
+
+
+# ------------------------- docteur -------------------------
+def doctor():
+    """Diagnostic global : désync, non mappés, orphelins, doublons."""
+    try:
+        obj, _ = read_actions()
+    except (OSError, json.JSONDecodeError) as e:
+        log(f"Lecture actions.json impossible : {e}", "ERROR")
+        return
+
+    cs_by_id = {}
+    for a in obj["actions"]:
+        for sa in csharp_subactions(a):
+            cs_by_id[sa["id"]] = (a.get("name"), sa)
+
+    desync, unmapped, a_pousser, mapped = [], [], [], set()
+    for path in all_cs_files():
+        rel = os.path.relpath(path, WATCH_DIR)
+        with open(path, "r", encoding="utf-8-sig") as f:
+            text = f.read()
+        aname, sub_id = parse_header(text)
+        if sub_id and sub_id in cs_by_id:
+            mapped.add(sub_id)
+            code = base64.b64decode(cs_by_id[sub_id][1]["byteCode"]).decode("utf-8", "replace")
+            if norm(code) != norm(text):
+                desync.append(rel)
+        elif aname or sub_id:
+            a_pousser.append(rel)   # en-tête présent mais pas encore dans SB (à pousser)
+        else:
+            unmapped.append(rel)    # aucun en-tête
+
+    orphans = [nom for sid, (nom, _sa) in cs_by_id.items() if sid not in mapped]
+    dups = [(a.get("name"), len(csharp_subactions(a)))
+            for a in obj["actions"] if len(csharp_subactions(a)) > 1]
+
+    log(f"🩺 Docteur Kika-sync — {len(all_cs_files())} .cs vs {len(cs_by_id)} sous-actions C#")
+    _section("DÉSYNCHRONISÉS (code local ≠ SB, à pousser)", desync, "WARN")
+    _section("À POUSSER (en-tête ok, pas encore dans SB)", a_pousser, "WARN")
+    _section("NON MAPPÉS (pas d'en-tête // sb-action → ignorés)", unmapped, "WARN")
+    _section("SANS .cs LOCAL (dans SB uniquement — peut être normal)", orphans, "INFO")
+    if dups:
+        log(f"  ⚠️ DOUBLONS : {len(dups)} action(s) avec >1 sous-action C#", "WARN")
+        for nom, k in dups:
+            log(f"      - '{nom}' : {k} sous-actions C#", "WARN")
+    if not any((desync, a_pousser, unmapped, dups)):
+        log("✅ Tout est sain : tout est mappé, synchronisé, sans doublon.")
+
+
+def _section(titre, items, niveau):
+    if items:
+        log(f"  {titre} : {len(items)}", niveau)
+        for it in items:
+            log(f"      - {it}", niveau)
+
+
+# ------------------------- aperçu diff -------------------------
+def diff_preview(paths=None):
+    """Affiche le diff (SB actuel -> fichier local) pour les .cs désynchronisés."""
+    import difflib
+    try:
+        obj, _ = read_actions()
+    except (OSError, json.JSONDecodeError) as e:
+        log(f"Lecture actions.json impossible : {e}", "ERROR")
+        return
+    paths = paths or all_cs_files()
+    n_diff = 0
+    for path in paths:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            text = f.read()
+        aname, sub_id = parse_header(text)
+        sa = None
+        if sub_id:
+            _a, sa = find_subaction_by_id(obj, sub_id)
+        if sa is None and aname:
+            hits = resolve_action_by_name(obj, aname)
+            cs = csharp_subactions(hits[0]) if hits else []
+            sa = cs[0] if len(cs) == 1 else None
+        rel = os.path.relpath(path, WATCH_DIR)
+        if sa is None:
+            log(f"  {rel} : non mappé (rien à comparer).", "WARN")
+            continue
+        current = base64.b64decode(sa["byteCode"]).decode("utf-8", "replace")
+        if norm(current) == norm(text):
+            continue
+        n_diff += 1
+        log(f"  ▼ DIFF {rel} (SB → local) :")
+        d = difflib.unified_diff(current.splitlines(), text.splitlines(),
+                                 lineterm="", n=1)
+        for k, line in enumerate(d):
+            if k < 3:
+                continue  # saute l'en-tête ---/+++/@@
+            if k > 44:
+                log("      … (diff tronqué)")
+                break
+            log(f"      {line}")
+    if n_diff == 0:
+        log("✅ Aucun écart : tous les .cs mappés sont synchronisés avec SB.")
+
+
+# ------------------------- backups : liste / restauration -------------------------
+def _backups_sorted():
+    try:
+        b = [os.path.join(BACKUP_DIR, n) for n in os.listdir(BACKUP_DIR)
+             if n.startswith("actions_") and n.endswith(".json")]
+    except OSError:
+        return []
+    return sorted(b, key=os.path.getmtime, reverse=True)   # plus récent en premier
+
+
+def list_backups():
+    b = _backups_sorted()
+    if not b:
+        log("Aucun backup dans " + BACKUP_DIR, "WARN")
+        return
+    log(f"Backups disponibles ({len(b)}, plus récent = 0) :")
+    for i, p in enumerate(b[:20]):
+        ts = datetime.datetime.fromtimestamp(os.path.getmtime(p)).strftime("%Y-%m-%d %H:%M:%S")
+        ko = os.path.getsize(p) // 1024
+        log(f"      [{i}] {ts}  ({ko} Ko)  {os.path.basename(p)}")
+
+
+def restore_backup(which=0):
+    b = _backups_sorted()
+    if not b:
+        log("Aucun backup à restaurer.", "ERROR")
+        return
+    if which < 0 or which >= len(b):
+        log(f"Index de backup invalide : {which} (0..{len(b) - 1}).", "ERROR")
+        return
+    src = b[which]
+    if sb_is_running():
+        log("⚠️ Streamer.bot tourne — restaure SB FERMÉ, sinon il réécrasera. "
+            "Ferme SB puis relance la restauration.", "WARN")
+        return
+    backup_actions()  # snapshot de l'état courant avant d'écraser
+    _clear_readonly(ACTIONS_JSON)
+    shutil.copy2(src, ACTIONS_JSON)
+    ts = datetime.datetime.fromtimestamp(os.path.getmtime(src)).strftime("%Y-%m-%d %H:%M:%S")
+    log(f"✅ Restauré : {os.path.basename(src)} ({ts}) → actions.json. Relance Streamer.bot.")
+
+
+# ------------------------- git : fichiers modifiés -------------------------
+def git_changed_cs():
+    """.cs modifiés/ajoutés depuis le dernier commit (sous WATCH_DIR)."""
+    def _git(args):
+        try:
+            r = subprocess.run(["git", "-C", REPO_ROOT] + args,
+                               capture_output=True, text=True,
+                               creationflags=CREATE_NO_WINDOW)
+            return r.stdout.splitlines() if r.returncode == 0 else []
+        except OSError:
+            return []
+    rels = set(_git(["diff", "--name-only", "HEAD"]))
+    rels |= set(_git(["ls-files", "--others", "--exclude-standard"]))
+    out = []
+    for rel in rels:
+        if rel.lower().endswith(".cs"):
+            ap = os.path.join(REPO_ROOT, rel.replace("/", os.sep))
+            if os.path.isfile(ap) and os.path.abspath(ap).lower().startswith(
+                    os.path.abspath(WATCH_DIR).lower()):
+                out.append(ap)
+    return out
+
+
+# ------------------------- compile-check (Roslyn best-effort) -------------------------
+_COMPILE_DIR = os.path.join(tempfile.gettempdir(), "kikasync_check")
+
+
+def _compile_setup():
+    os.makedirs(_COMPILE_DIR, exist_ok=True)
+    with open(os.path.join(_COMPILE_DIR, "kikacheck.csproj"), "w", encoding="utf-8") as f:
+        f.write('<Project Sdk="Microsoft.NET.Sdk">\n'
+                '  <PropertyGroup>\n'
+                '    <TargetFramework>net10.0</TargetFramework>\n'
+                '    <Nullable>disable</Nullable>\n'
+                '    <ImplicitUsings>disable</ImplicitUsings>\n'
+                '    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>\n'
+                '    <LangVersion>latest</LangVersion>\n'
+                '    <OutputType>Library</OutputType>\n'
+                '  </PropertyGroup>\n'
+                '  <ItemGroup>\n'
+                '    <Compile Include="Stub.cs" />\n'
+                '    <Compile Include="User.cs" />\n'
+                '  </ItemGroup>\n'
+                '</Project>\n')
+    with open(os.path.join(_COMPILE_DIR, "Stub.cs"), "w", encoding="utf-8") as f:
+        f.write("using System.Collections.Generic;\n"
+                "public partial class CPHInline {\n"
+                "    protected dynamic CPH = null;\n"
+                "    protected Dictionary<string, object> args = new Dictionary<string, object>();\n"
+                "}\n")
+
+
+def compile_check(paths):
+    if shutil.which("dotnet") is None:
+        log("Compile-check indisponible (dotnet introuvable) — lint light seulement.", "WARN")
+        return None
+    _compile_setup()
+    user = os.path.join(_COMPILE_DIR, "User.cs")
+    log("Compile-check (Roslyn) — la 1re passe restaure le projet (~10-20 s)…")
+    ok_all = True
+    for path in paths:
+        try:
+            with open(path, "r", encoding="utf-8-sig") as f:
+                text = f.read()
+        except OSError as e:
+            log(f"  Lecture impossible {path} : {e}", "ERROR")
+            continue
+        # rend la classe 'partial' pour lui injecter CPH/args via Stub.cs
+        code = text.replace("public class CPHInline", "public partial class CPHInline", 1)
+        with open(user, "w", encoding="utf-8") as f:
+            f.write(code)
+        try:
+            r = subprocess.run(["dotnet", "build", "-nologo"], cwd=_COMPILE_DIR,
+                               capture_output=True, text=True,
+                               creationflags=CREATE_NO_WINDOW, timeout=180)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            log(f"  Compile-check échoué ({os.path.basename(path)}) : {e}", "WARN")
+            continue
+        errs = [l.strip() for l in (r.stdout + r.stderr).splitlines() if "error CS" in l]
+        if errs:
+            ok_all = False
+            log(f"  ✗ {os.path.basename(path)} : {len(errs)} erreur(s)", "ERROR")
+            seen = set()
+            for e in errs:
+                if e not in seen:
+                    seen.add(e)
+                    log(f"      {e}", "ERROR")
+        else:
+            log(f"  ✓ {os.path.basename(path)} : compile OK")
+    log("Compile-check : tout compile ✅" if ok_all
+        else "Compile-check : des erreurs ci-dessus.", "INFO" if ok_all else "ERROR")
+    return ok_all
+
+
+# ------------------------- vérif post-relance (log SB) -------------------------
+_RE_LOGTS = re.compile(r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
+
+
+def verify_after_launch(since):
+    try:
+        logs = [os.path.join(SB_LOGS_DIR, n) for n in os.listdir(SB_LOGS_DIR)
+                if n.lower().endswith(".log")]
+    except OSError:
+        log("Vérif post-relance : dossier logs SB introuvable.", "WARN")
+        return
+    if not logs:
+        return
+    newest = max(logs, key=os.path.getmtime)
+    log("Vérif post-relance : attente du démarrage de SB (8 s)…")
+    time.sleep(8)
+    try:
+        with open(newest, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except OSError:
+        return
+    errs = []
+    for line in lines:
+        if "error CS" in line:
+            m = _RE_LOGTS.match(line.lstrip())
+            if m:
+                try:
+                    t = datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+                    if t < since:
+                        continue
+                except ValueError:
+                    pass
+            errs.append(line.strip())
+    if errs:
+        log("⚠️ Streamer.bot signale des erreurs de compilation après relance :", "ERROR")
+        for e in errs[-8:]:
+            log(f"      {e}", "ERROR")
+    else:
+        log("Vérif post-relance : aucune erreur de compilation détectée ✅")
+
+
 # ------------------------- watch -------------------------
 def run_watch(reload_mode, lock):
     try:
@@ -608,45 +974,79 @@ def run_watch(reload_mode, lock):
 
 # ------------------------- main -------------------------
 def main():
-    global RELOAD_MODE, LOCK_AFTER_PATCH
-    p = argparse.ArgumentParser(description="Sync .cs -> Streamer.bot actions.json")
+    global RELOAD_MODE, LOCK_AFTER_PATCH, DO_LINT, DO_VERIFY
+    p = argparse.ArgumentParser(description="Kika-sync : .cs -> Streamer.bot actions.json")
     p.add_argument("--reload", choices=["A", "B"], help="A=kill+relaunch, B=patch seul")
     p.add_argument("--once", action="store_true", help="synchronise tout le dossier (tous les .cs)")
     p.add_argument("--last", action="store_true", help="synchronise le .cs modifie le plus recemment")
-    p.add_argument("--check-duplicates", action="store_true", help="scanne actions.json pour les doublons C#")
+    p.add_argument("--changed", action="store_true", help="synchronise les .cs modifies depuis le dernier commit (git)")
     p.add_argument("--file", help="patch un seul fichier .cs puis quitte")
+    p.add_argument("--check-duplicates", action="store_true", help="scanne actions.json pour les doublons C#")
+    p.add_argument("--doctor", action="store_true", help="diagnostic : desync / non mappes / orphelins / doublons")
+    p.add_argument("--diff", action="store_true", help="apercu des ecarts local <-> SB (lecture seule)")
+    p.add_argument("--compile-check", action="store_true", help="verifie la compilation C# (Roslyn/dotnet)")
+    p.add_argument("--list-backups", action="store_true", help="liste les backups de actions.json")
+    p.add_argument("--restore", nargs="?", type=int, const=0, default=None,
+                   metavar="N", help="restaure le backup N (0=le plus recent) — SB fermé")
     p.add_argument("--discover", action="store_true", help="propose un mapping par similarite")
     p.add_argument("--write", action="store_true", help="(avec --discover) insere les en-tetes surs")
     p.add_argument("--lock", action="store_true", help="(mode B) actions.json en lecture seule apres patch")
+    p.add_argument("--verify", action="store_true", help="(mode A) verifie le log SB apres relance")
+    p.add_argument("--no-lint", action="store_true", help="desactive la pre-verification C#")
     args = p.parse_args()
 
     reload_mode = args.reload or RELOAD_MODE
     lock = args.lock or LOCK_AFTER_PATCH
+    if args.no_lint:
+        DO_LINT = False
+    if args.verify:
+        DO_VERIFY = True
 
+    # --- diagnostics (lecture seule / hors patch) ---
+    if args.doctor:
+        doctor(); return
+    if args.diff:
+        diff_preview(); return
     if args.check_duplicates:
-        check_duplicates()
+        check_duplicates(); return
+    if args.list_backups:
+        list_backups(); return
+    if args.restore is not None:
+        restore_backup(args.restore); return
+    if args.compile_check:
+        if args.file:
+            compile_check([os.path.abspath(args.file)])
+        elif args.last:
+            nc = newest_cs()
+            compile_check([nc] if nc else [])
+        else:
+            compile_check(all_cs_files())
         return
     if args.discover:
-        discover(write=args.write)
-        return
+        discover(write=args.write); return
+
+    # --- synchronisations (patch) ---
     if args.file:
         patch_files([os.path.abspath(args.file)], reload_mode, lock)
         return
     if args.last:
-        p2 = newest_cs()
-        if p2:
-            log(f"Derniere sauvegarde : {os.path.relpath(p2, WATCH_DIR)}")
-            patch_files([p2], reload_mode, lock)
+        nc = newest_cs()
+        if nc:
+            log(f"Derniere sauvegarde : {os.path.relpath(nc, WATCH_DIR)}")
+            patch_files([nc], reload_mode, lock)
         else:
             log("Aucun fichier .cs trouve sous WATCH_DIR.", "WARN")
         return
+    if args.changed:
+        files = git_changed_cs()
+        if files:
+            log(f"{len(files)} .cs modifie(s) depuis le dernier commit.")
+            patch_files(files, reload_mode, lock)
+        else:
+            log("Aucun .cs modifie depuis le dernier commit.")
+        return
     if args.once:
-        files = []
-        for root, _d, names in os.walk(WATCH_DIR):
-            for n in names:
-                if n.lower().endswith(".cs"):
-                    files.append(os.path.join(root, n))
-        patch_files(files, reload_mode, lock)
+        patch_files(all_cs_files(), reload_mode, lock)
         return
     run_watch(reload_mode, lock)
 

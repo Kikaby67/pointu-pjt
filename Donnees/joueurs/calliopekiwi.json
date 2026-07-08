@@ -2,7 +2,7 @@
   "nomJoueur": "CalliopeKiwi",
   "ram": 100,
   "niveau": 4,
-  "experience": 4419,
+  "experience": 4439,
   "classeChoisie": true,
   "classe": "Algorythmancien",
   "sousClasseChoisie": false,
@@ -49,5 +49,5 @@
   "compagnonActif": "",
   "rencontreExpire": 0
 ,
-  "derniereActivite": 1783529090
+  "derniereActivite": 1783535442
 }
