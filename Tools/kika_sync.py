@@ -529,6 +529,7 @@ def newest_cs():
 def check_duplicates():
     """Scanne actions.json : signale les actions ayant PLUSIEURS sous-actions C#
     (doublons probables) et les GUID de sous-action partages. Ne modifie rien."""
+    _warn_stale_if_running()
     try:
         obj, _ = read_actions()
     except (OSError, json.JSONDecodeError) as e:
@@ -571,6 +572,14 @@ def all_cs_files():
             if n.lower().endswith(".cs"):
                 out.append(os.path.join(root, n))
     return out
+
+
+def _warn_stale_if_running():
+    """Les diagnostics lisent le fichier disque : si SB tourne, il peut etre en retard."""
+    if sb_is_running():
+        log("⚠️ Streamer.bot est ACTIF — actions.json sur disque peut être en retard "
+            "sur la mémoire de SB (modifs UI non encore sauvegardées). "
+            "Ferme SB pour un diagnostic fiable.", "WARN")
 
 
 # ------------------------- lint C# (pre-vol) -------------------------
@@ -637,6 +646,7 @@ def lint_csharp(text):
 # ------------------------- docteur -------------------------
 def doctor():
     """Diagnostic global : désync, non mappés, orphelins, doublons."""
+    _warn_stale_if_running()
     try:
         obj, _ = read_actions()
     except (OSError, json.JSONDecodeError) as e:
@@ -692,6 +702,7 @@ def _section(titre, items, niveau):
 def diff_preview(paths=None):
     """Affiche le diff (SB actuel -> fichier local) pour les .cs désynchronisés."""
     import difflib
+    _warn_stale_if_running()
     try:
         obj, _ = read_actions()
     except (OSError, json.JSONDecodeError) as e:
