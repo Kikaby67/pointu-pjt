@@ -42,7 +42,7 @@ try:
     _ks = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_ks)
     SB_IS_RUNNING = _ks.sb_is_running
-except Exception:
+except Exception:      # best effort : un kika_sync.py cassé ne doit pas empêcher la GUI de s'ouvrir
     SB_IS_RUNNING = None
 
 # ---- Palette vert & noir ----
@@ -121,6 +121,14 @@ class App:
                                   style="Big.TButton",
                                   command=lambda: self.run(["--check-duplicates"]))
         self.btn_dup.grid(row=0, column=2, sticky="ew", padx=(6, 0))
+
+        # ---- Créer une nouvelle action ----
+        newrow = ttk.Frame(root, padding=(14, 6))
+        newrow.pack(fill="x")
+        self.btn_new = ttk.Button(
+            newrow, text="➕  Créer des actions  (choisir un ou plusieurs .cs)",
+            style="Big.TButton", command=self.create_new_action)
+        self.btn_new.pack(fill="x")
 
         # ---- Rangée 1 : sync + surveillance ----
         sec = ttk.Frame(root, padding=(14, 2))
@@ -252,9 +260,36 @@ class App:
         self.chk_lock.configure(state="normal" if self.mode.get() == "B" else "disabled")
 
     def _action_buttons(self):
-        return [self.btn_all, self.btn_last, self.btn_dup, self.btn_changed,
+        return [self.btn_all, self.btn_last, self.btn_dup, self.btn_new, self.btn_changed,
                 self.btn_stamp, self.btn_watch, self.btn_doctor, self.btn_diff,
                 self.btn_compile, self.btn_backups, self.btn_restore]
+
+    def create_new_action(self):
+        """Choisir un ou PLUSIEURS .cs (avec en-tetes) et creer les actions dans SB."""
+        from tkinter import filedialog
+        initial = getattr(_ks, "WATCH_DIR", HERE) if _ks else HERE
+        if not os.path.isdir(initial):
+            initial = HERE
+        picked = filedialog.askopenfilenames(
+            title="Choisis un ou plusieurs .cs à transformer en actions",
+            initialdir=initial, filetypes=[("Fichiers C#", "*.cs"), ("Tous", "*.*")])
+        paths = list(self.root.tk.splitlist(picked))   # robuste (chemins avec espaces)
+        if not paths:
+            return
+        noms = "\n".join("  • " + os.path.basename(p) for p in paths[:12])
+        if len(paths) > 12:
+            noms += f"\n  … (+{len(paths) - 12} autre(s))"
+        if not messagebox.askyesno(
+                "Créer une/des nouvelle(s) action(s)",
+                f"Créer {len(paths)} action(s) dans Streamer.bot depuis :\n{noms}\n\n"
+                "Streamer.bot sera fermé proprement (sauvegarde OK) puis relancé "
+                "(un seul cycle pour tout le lot).\n\n"
+                "Chaque .cs doit contenir en tête :\n"
+                "  // sb-action: <Nom de l'action>\n"
+                "  // sb-group: <Groupe>            (optionnel)\n"
+                "  // sb-trigger: command !xxx      (optionnel, plusieurs possibles)"):
+            return
+        self.run(["--create-action"] + paths)
 
     def sync(self, base_args):
         """Lance une synchro (avec reload) + garde-fou Mode B/SB actif."""
@@ -332,7 +367,7 @@ class App:
         if SB_IS_RUNNING is not None:
             try:
                 running = SB_IS_RUNNING()
-            except Exception:
+            except OSError:
                 running = None
             if running is True:
                 self.sb_dot.configure(text="●  Streamer.bot actif", foreground=GREEN)
@@ -380,6 +415,7 @@ class App:
                 proc.stdout.close()
             except OSError:
                 pass
+            proc.wait()          # garantit un returncode fiable (sinon peut valoir None)
             self.q.put(("__END__", proc.returncode))
 
     def _poll(self):

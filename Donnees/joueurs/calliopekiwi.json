@@ -1,8 +1,8 @@
 {
   "nomJoueur": "CalliopeKiwi",
-  "ram": 100,
+  "ram": 111,
   "niveau": 4,
-  "experience": 4439,
+  "experience": 4619,
   "classeChoisie": true,
   "classe": "Algorythmancien",
   "sousClasseChoisie": false,
@@ -19,18 +19,18 @@
   "enQuete": false,
   "queteId": "artefact_01",
   "queteTicksRestants": 0,
-  "queteDernierTick": 1782929006,
-  "queteTotalPause": 514,
+  "queteDernierTick": 1783885243,
+  "queteTotalPause": 58,
   "quetePauseDebut": 0,
   "queteCooldownFin": 0,
   "enRencontre": false,
   "rencontreType": "",
-  "dernierCheckRencontre": 1782931064,
+  "dernierCheckRencontre": 1783887073,
   "reposCooldownFin": 1779740897,
   "queteEventsUsed": 0,
-  "offreValeur": 5,
+  "offreValeur": 22,
   "combatActuel": {
-    "ennemiNom": "Martre-Trojan",
+    "ennemiNom": "Taupe-Malware",
     "ennemiPVActuels": 30,
     "buffActif": false,
     "protectionActive": false,
@@ -43,11 +43,15 @@
   "statistiques": {
     "combatsGagnes": 7,
     "combatsPerdus": 1,
-    "quetesTerminees": 12
+    "quetesTerminees": 14
   },
   "agilite": 12,
   "compagnonActif": "",
   "rencontreExpire": 0
 ,
-  "derniereActivite": 1783535442
+  "derniereActivite": 1783899174
+,
+  "duelDe": ""
+,
+  "duelExpire": 0
 }

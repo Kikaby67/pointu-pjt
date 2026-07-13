@@ -16,3 +16,23 @@ error.log
 # ─── Kika-sync : chemins d'accès perso + logs (ne pas partager) ───
 Tools/kika_sync.local.json
 Tools/kika_sync.log
+
+
+# --- Ajoute par livraison.py (structure standard) ---
+# --- Secrets & prive (jamais versionner) ---
+secrets/
+.env
+**/.env
+*.pem
+*.key
+config_local.py
+
+# --- Environnements & dependances (recreables) ---
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+
+# --- Archives / logs ---
+*.zip
+*.log

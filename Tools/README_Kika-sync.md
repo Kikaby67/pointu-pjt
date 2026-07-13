@@ -24,8 +24,47 @@ Chaque `.cs` porte 2 commentaires d'en-tête :
   renommer l'action dans SB sans rien casser.
 - Si l'action a **plusieurs** sub-actions C# (rare) : le script logue les candidats, à toi de coller
   le bon `// sb-subaction-id`.
-- Si l'action **n'existe pas encore** : il faut d'abord créer l'action (avec son trigger) dans SB.
-  Le script crée une **sub-action** manquante dans une action existante, pas une action complète.
+- Si l'action **n'existe pas encore** : utilise la **création d'action** (voir plus bas) qui crée
+  l'action complète (nom, groupe, triggers, sous-action C#) — ou crée-la à la main dans SB.
+  La synchro normale, elle, crée une **sous-action** manquante dans une action **existante**.
+
+## Créer une nouvelle action (nom + triggers + code)
+
+En plus de mettre à jour du code existant, kika-sync peut **créer une action complète** dans
+Streamer.bot à partir d'un `.cs`, en lisant des en-têtes :
+
+```csharp
+// sb-action: Ma nouvelle action     ← nom de l'action à créer
+// sb-group: Commandes                ← groupe SB (optionnel)
+// sb-trigger: command !bonjour       ← trigger commande chat (0..N)
+// sb-trigger: command !salut
+// sb-trigger: follow                 ← trigger événement (follow, raid, sub…)
+// sb-trigger: raid
+// sb-subaction-id: <auto>            ← rempli tout seul à la création
+using System;
+public class CPHInline { public bool Execute() { CPH.SendMessage("Coucou"); return true; } }
+```
+
+- **GUI** : bouton **« ➕ Créer des actions »** → choisis **un ou plusieurs** `.cs` (multi-sélection)
+  → l'outil ferme SB proprement, crée toutes les actions + commandes, puis relance SB
+  (**un seul cycle** d'arrêt/relance pour tout le lot).
+- **CLI** : `python kika_sync.py --create-action fichier1.cs [fichier2.cs ...]`
+- Une commande déjà présente (dans SB ou dans le lot) est **réutilisée** — jamais dupliquée.
+
+Ce qui est créé, **tout en JSON** (aucune écriture dans le LiteDB fragile) :
+- l'**action** (`actions.json`) avec sa sous-action C# (le code du `.cs`) ;
+- pour chaque `// sb-trigger: command !xxx` : une **commande** dans `commands.json` + le trigger
+  correspondant (type 401) dans l'action. Une commande déjà existante est réutilisée (pas de doublon).
+
+> Types de triggers gérés :
+> - **commande chat** : `command !xxx` (crée la commande dans `commands.json`) ;
+> - **événements** (auto-contenus, clonés sur tes triggers existants) : `follow`, `raid`, `sub`,
+>   `resub`, `giftsub`, `cheer` (= `bits`). Créés « pour n'importe quelle valeur » (montants/tiers
+>   ouverts) — affine les seuils dans SB si besoin.
+>
+> Le **reward** (points de chaîne) reste à faire à la main pour l'instant. La création se fait
+> **SB fermé** (arrêt gracieux
+> automatique en Mode A), sinon SB écraserait la nouvelle action en se refermant.
 
 ## Interface graphique (sans PowerShell)
 
@@ -138,6 +177,7 @@ python kika_sync.py --reload B --lock
 | `--last` | synchronise le `.cs` modifié le plus récemment puis quitte |
 | `--changed` | synchronise les `.cs` modifiés depuis le dernier commit (git) |
 | `--file CHEMIN` | patch un seul `.cs` puis quitte |
+| `--create-action CHEMIN` | **crée une nouvelle action** depuis un `.cs` (en-têtes `sb-action`/`sb-group`/`sb-trigger`) |
 | `--doctor` | diagnostic : désync / non mappés / orphelins / doublons (lecture seule) |
 | `--diff` | aperçu des écarts local → SB (lecture seule) |
 | `--check-duplicates` | signale les actions à >1 sous-action C# ou GUID partagés (lecture seule) |
@@ -158,7 +198,7 @@ que SB tourne ne sert à rien. **Il faut patcher pendant que SB est FERMÉ.**
 
 | | Mode A (kill + relaunch) | Mode B (patch seul) |
 |---|---|---|
-| Ce qu'il fait | tue SB → patche → relance | patche seulement |
+| Ce qu'il fait | **ferme SB proprement** → patche → relance | patche seulement |
 | SB pendant l'écriture | **fermé** (garanti) | tel quel — **doit être fermé par toi** |
 | Fiable si SB tourne | ✅ oui | ❌ non (SB écrasera au prochain close) |
 | Code appliqué | ✅ au relaunch | ❌ tu relances SB toi-même |
@@ -177,8 +217,15 @@ repasser en Mode A.
 
 ## Sécurité / traçabilité
 
+- **Arrêt GRACIEUX de Streamer.bot** en Mode A (depuis v2) : demande de fermeture propre
+  (`taskkill` sans `/F`) → attente que SB sauvegarde et quitte → force **seulement en dernier
+  recours**. Évite la corruption des bases LiteDB (commands.db…) qu'un kill brutal peut causer.
+  💡 Décoche **« Minimize to tray »** dans SB pour un arrêt 100 % propre (sinon il faut forcer).
 - **Backup horodaté** de `actions.json` avant chaque écriture → `…\data\_kikasync_backups\`
   (les 50 derniers sont conservés). Indépendant du `.bak` que SB gère lui-même.
+- **Snapshot complet** avant toute opération Mode A → `…\_kikasync_backups\full_<horodatage>\`
+  (actions.json + commands.json + **tous les `.db`**, les 12 derniers conservés). Comble le trou :
+  une corruption d'une base LiteDB redevient récupérable.
 - **Logs** dans la console **et** dans `Tools\kika_sync.log` : fichier détecté, action/sub-action
   trouvée ou non, backup, patch, reload.
 - Écriture **atomique** (fichier temporaire puis `os.replace`) + BOM UTF-8 et format minifié

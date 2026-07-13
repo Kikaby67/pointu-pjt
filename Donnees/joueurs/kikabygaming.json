@@ -2,7 +2,7 @@
   "nomJoueur": "kikabyGaming",
   "ram": 744,
   "niveau": 5,
-  "experience": 6969,
+  "experience": 7024,
   "classeChoisie": true,
   "classe": "Hexadécimeur",
   "sousClasseChoisie": false,
@@ -17,20 +17,20 @@
   "charisme": 8,
   "enCombat": false,
   "enQuete": false,
-  "queteId": "service_04",
+  "queteId": "service_01",
   "queteTicksRestants": 0,
-  "queteDernierTick": 1782929400,
+  "queteDernierTick": 1783878627,
   "enRencontre": false,
   "rencontreType": "",
   "quetePauseDebut": 0,
-  "queteTotalPause": 339,
+  "queteTotalPause": 242,
   "queteCooldownFin": 0,
-  "dernierCheckRencontre": 1782931396,
+  "dernierCheckRencontre": 1783879540,
   "reposCooldownFin": 1781172637,
   "queteEventsUsed": 0,
-  "offreValeur": 7,
+  "offreValeur": 0,
   "combatActuel": {
-    "ennemiNom": "Ombre de la mémoire",
+    "ennemiNom": "Sanglier-Crash",
     "ennemiPVActuels": 20,
     "buffActif": false,
     "protectionActive": false,
@@ -49,5 +49,5 @@
   "compagnonActif": "",
   "rencontreExpire": 0
 ,
-  "derniereActivite": 1783531300
+  "derniereActivite": 1783896003
 }

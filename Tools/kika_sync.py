@@ -19,7 +19,7 @@ Mapping fichier .cs <-> sub-action :
 Le code est stocke dans le champ byteCode = base64(source UTF-8) (pas de gzip).
 
 Reload apres patch :
-  Mode A : kill (force) de Streamer.bot -> patch -> relaunch. 100% fiable.
+  Mode A : arret GRACIEUX de Streamer.bot -> patch -> relaunch. Fiable, sans corruption de base.
   Mode B : patch seulement, SB reste ouvert. Le code N'EST PAS applique tant que
            tu ne relances pas SB, et il y a un risque d'ecrasement si SB sauvegarde.
 
@@ -71,7 +71,9 @@ CSHARP_TYPE       = 99999        # type des sub-actions "Execute C# Code"
 DEFAULT_REFERENCES = [r"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\mscorlib.dll"]
 
 DEBOUNCE_SECONDS  = 0.6          # regroupe les sauvegardes rapprochees
-KEEP_BACKUPS      = 50           # nombre de backups horodates conserves
+KEEP_BACKUPS      = 50           # nombre de backups horodates conserves (actions.json)
+KEEP_FULL_BACKUPS = 12           # nombre de snapshots complets (actions+commands+.db) conserves
+STOP_GRACE_SECONDS = 25          # attente max d'un arret propre de SB avant de forcer
 DISCOVER_THRESHOLD = 0.97        # similarite mini pour un auto-stamp en --discover --write
 
 # Surcharge locale (non versionnee) : {"actions_json":"...","sb_exe":"...","watch_dir":"...","reload_mode":"A"}
@@ -104,8 +106,15 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-RE_ACTION = re.compile(r"^\s*//\s*sb-action:\s*(.+?)\s*$", re.MULTILINE)
-RE_SUBID  = re.compile(r"^\s*//\s*sb-subaction-id:\s*([0-9a-fA-F-]{36})\s*$", re.MULTILINE)
+RE_ACTION    = re.compile(r"^\s*//\s*sb-action:\s*(.+?)\s*$", re.MULTILINE)
+RE_SUBID     = re.compile(r"^\s*//\s*sb-subaction-id:\s*([0-9a-fA-F-]{36})\s*$", re.MULTILINE)
+RE_SUBID_ANY = re.compile(r"^[ \t]*//[ \t]*sb-subaction-id:.*$", re.MULTILINE)  # inclut <auto>
+RE_GROUP   = re.compile(r"^\s*//\s*sb-group:\s*(.+?)\s*$", re.MULTILINE)
+RE_TRIGGER = re.compile(r"^\s*//\s*sb-trigger:\s*(.+?)\s*$", re.MULTILINE)
+
+# commands.json : magasin JSON des definitions de commandes (a cote de actions.json)
+COMMANDS_JSON = os.path.join(os.path.dirname(ACTIONS_JSON), "commands.json")
+TRIGGER_TYPE_COMMAND = 401       # type d'un trigger "Command"
 
 
 def log(msg, level="INFO"):
@@ -118,13 +127,34 @@ def log(msg, level="INFO"):
         pass
 
 
-# ------------------------- actions.json I/O -------------------------
-def read_actions():
-    with open(ACTIONS_JSON, "rb") as f:
+# ------------------------- JSON I/O (atomique, BOM preserve) -------------------------
+def _read_json(path):
+    """Lit un JSON en preservant l'info BOM. Retourne (obj, had_bom)."""
+    with open(path, "rb") as f:
         raw = f.read()
     had_bom = raw[:3] == b"\xef\xbb\xbf"
-    obj = json.loads(raw.decode("utf-8-sig"))
-    return obj, had_bom
+    return json.loads(raw.decode("utf-8-sig")), had_bom
+
+
+def _write_json(path, obj, had_bom):
+    """Ecriture ATOMIQUE (fichier temp + os.replace) ; BOM et format minifie preserves."""
+    _clear_readonly(path)
+    data = ("﻿" if had_bom else "") + json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+    tmp = path + ".sbsync.tmp"
+    for attempt in range(5):
+        try:
+            with open(tmp, "w", encoding="utf-8", newline="") as f:
+                f.write(data)
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.4)
+
+
+def read_actions():
+    return _read_json(ACTIONS_JSON)
 
 
 def backup_actions():
@@ -147,26 +177,44 @@ def backup_actions():
     return dst
 
 
+def safety_backup():
+    """Snapshot COMPLET avant une operation Mode A : actions.json + commands.json + tous les *.db.
+    Comble le trou du backup standard (actions.json seul) : une corruption de commands.db
+    (ou autre base LiteDB) redevient recuperable. Garde les KEEP_FULL_BACKUPS derniers."""
+    data_dir = os.path.dirname(ACTIONS_JSON)
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    dst = os.path.join(BACKUP_DIR, f"full_{ts}")
+    os.makedirs(dst, exist_ok=True)
+    n, skipped = 0, []
+    for name in os.listdir(data_dir):
+        if name in ("actions.json", "commands.json") or name.endswith(".db"):
+            try:
+                shutil.copy2(os.path.join(data_dir, name), os.path.join(dst, name))
+                n += 1
+            except OSError:
+                skipped.append(name)
+    fulls = sorted(
+        (os.path.join(BACKUP_DIR, d) for d in os.listdir(BACKUP_DIR)
+         if d.startswith("full_") and os.path.isdir(os.path.join(BACKUP_DIR, d))),
+        key=os.path.getmtime,
+    )
+    for old in fulls[:-KEEP_FULL_BACKUPS]:
+        shutil.rmtree(old, ignore_errors=True)
+    log(f"Snapshot complet cree : {dst} ({n} fichiers)")
+    if skipped:
+        log(f"  ATTENTION : {len(skipped)} fichier(s) non copie(s) au snapshot "
+            f"(verrouilles par SB ?) : {', '.join(skipped)}", "WARN")
+    return dst
+
+
 def _clear_readonly(path):
     if os.path.exists(path):
         os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
 
 
 def write_actions(obj, had_bom, lock=False):
-    _clear_readonly(ACTIONS_JSON)
-    body = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
-    data = ("﻿" if had_bom else "") + body
-    tmp = ACTIONS_JSON + ".sbsync.tmp"
-    for attempt in range(5):
-        try:
-            with open(tmp, "w", encoding="utf-8", newline="") as f:
-                f.write(data)
-            os.replace(tmp, ACTIONS_JSON)
-            break
-        except PermissionError:
-            if attempt == 4:
-                raise
-            time.sleep(0.4)
+    _write_json(ACTIONS_JSON, obj, had_bom)
     if lock:
         os.chmod(ACTIONS_JSON, stat.S_IREAD)
         log("actions.json passe en LECTURE SEULE (garde anti-ecrasement). "
@@ -193,6 +241,8 @@ def apply_stamp(text, action_name, guid):
     (idempotent). Sert AVANT encodage pour que byteCode == contenu disque."""
     if RE_SUBID.search(text):
         return RE_SUBID.sub(f"// sb-subaction-id: {guid}", text, count=1)
+    if RE_SUBID_ANY.search(text):   # placeholder "<auto>" -> vrai GUID (pas de ligne fantome)
+        return RE_SUBID_ANY.sub(f"// sb-subaction-id: {guid}", text, count=1)
     if RE_ACTION.search(text):
         m = RE_ACTION.search(text)
         return text[:m.end()] + f"\n// sb-subaction-id: {guid}" + text[m.end():]
@@ -243,6 +293,125 @@ def _new_guid():
 
 def encode_bytecode(src_text):
     return base64.b64encode(src_text.encode("utf-8")).decode("ascii")
+
+
+# ------------------------- creation d'action -------------------------
+def parse_triggers(text):
+    """Retourne la liste des triggers declares en en-tete : [(kind, value), ...].
+    Syntaxe : // sb-trigger: command !bonjour   (kind='command', value='!bonjour')."""
+    out = []
+    for raw in RE_TRIGGER.findall(text):
+        parts = raw.strip().split(None, 1)
+        kind = parts[0].lower()
+        value = parts[1].strip() if len(parts) > 1 else ""
+        out.append((kind, value))
+    return out
+
+
+def parse_header_full(text):
+    """(action_name, sub_id, group, triggers)."""
+    name, sub_id = parse_header(text)
+    g = RE_GROUP.search(text)
+    return name, sub_id, (g.group(1).strip() if g else None), parse_triggers(text)
+
+
+def read_commands():
+    if not os.path.exists(COMMANDS_JSON):
+        return None, False
+    return _read_json(COMMANDS_JSON)
+
+
+def write_commands(obj, had_bom):
+    _write_json(COMMANDS_JSON, obj, had_bom)
+
+
+def new_action(name, group=None):
+    """Nouvelle action vide (schema conforme a Streamer.bot)."""
+    return {
+        "id": _new_guid(),
+        "queue": "00000000-0000-0000-0000-000000000000",
+        "enabled": True,
+        "excludeFromHistory": False,
+        "excludeFromPending": False,
+        "name": name,
+        "group": group,
+        "alwaysRun": False,
+        "randomAction": False,
+        "concurrent": False,
+        "triggers": [],
+        "subActions": [],
+        "collapsedGroups": [],
+    }
+
+
+def new_command(cmd_text, group=None):
+    """Nouvelle commande chat (schema conforme a commands.json)."""
+    return {
+        "permittedUsers": [],
+        "permittedGroups": [],
+        "id": _new_guid(),
+        "name": cmd_text,
+        "enabled": True,
+        "include": False,
+        "mode": 0,
+        "command": cmd_text,
+        "regexExplicitCapture": False,
+        "location": 0,
+        "ignoreBotAccount": True,
+        "ignoreInternal": True,
+        "sources": 1,
+        "persistCounter": False,
+        "persistUserCounter": False,
+        "caseSensitive": False,
+        "globalCooldown": 0,
+        "userCooldown": 0,
+        "group": group,
+        "grantType": 0,
+    }
+
+
+def new_command_trigger(command_id):
+    return {"commandId": command_id, "id": _new_guid(),
+            "type": TRIGGER_TYPE_COMMAND, "enabled": True, "exclusions": []}
+
+
+def find_command(cmds_obj, cmd_text):
+    for c in cmds_obj.get("commands", []):
+        if (c.get("command") or "").lower() == cmd_text.lower():
+            return c
+    return None
+
+
+# Triggers d'EVENEMENT (auto-contenus dans actions.json, pas de reference externe).
+# Numeros de type releves dans les vraies actions de l'utilisateur.
+EVENT_TRIGGER_TYPES = {
+    "follow": 101, "cheer": 102, "bits": 102,
+    "sub": 103, "resub": 104, "giftsub": 105, "raid": 107,
+}
+_ANY_FIELDS = ("min", "max", "monthsGifted")   # -1 = "n'importe quel"
+
+
+def find_trigger_template(obj, type_num):
+    """Un trigger existant de ce type, comme modele (garantit les bons champs/format SB)."""
+    for a in obj.get("actions", []):
+        for t in a.get("triggers", []):
+            if t.get("type") == type_num:
+                return t
+    return None
+
+
+def new_event_trigger(obj, type_num):
+    """Trigger d'evenement : clone un modele existant (nouvel id, plages = 'any')."""
+    tmpl = find_trigger_template(obj, type_num)
+    t = dict(tmpl) if tmpl else {"type": type_num}
+    t["id"] = _new_guid()
+    t["type"] = type_num
+    t["enabled"] = True
+    t["exclusions"] = []
+    for f in _ANY_FIELDS:
+        if f in t:
+            t[f] = -1          # declenche pour n'importe quelle valeur
+    return t
 
 
 # ------------------------- coeur du patch -------------------------
@@ -328,10 +497,11 @@ def patch_files(paths, reload_mode, lock):
         log(f"actions.json introuvable : {ACTIONS_JSON}", "ERROR")
         return
 
-    # Mode A : on tue SB AVANT d'ecrire pour qu'il ne puisse pas ecraser le fichier.
+    # Mode A : on FERME SB (arret gracieux) AVANT d'ecrire pour qu'il ne puisse pas ecraser le fichier.
     killed = False
     if reload_mode == "A":
-        killed = kill_streamerbot()
+        safety_backup()               # snapshot complet (actions+commands+.db) par securite
+        killed = stop_streamerbot()
 
     try:
         obj, had_bom = read_actions()
@@ -411,6 +581,147 @@ def patch_files(paths, reload_mode, lock):
             "WARN")
 
 
+# ------------------------- creation d'action(s) complete(s) -------------------------
+def create_actions(paths):
+    """Cree une ou PLUSIEURS nouvelles actions dans Streamer.bot depuis des .cs.
+    Chaque .cs : nom via '// sb-action:', groupe via '// sb-group:', triggers via
+    '// sb-trigger: command !xxx' ; la sous-action C# = le contenu du .cs.
+    Tout le lot se fait SB FERME (arret gracieux) en UN seul cycle (un seul arret/relance)."""
+    paths = [os.path.abspath(p) for p in paths
+             if p.lower().endswith(".cs") and os.path.isfile(p)]
+    if not paths:
+        log("Aucun fichier .cs valide a creer.", "ERROR")
+        return False
+
+    # --- Pre-validation (SB encore up) : en-tetes, lint, action deja existante / doublon dans le lot ---
+    try:
+        obj0, _ = read_actions()
+    except (OSError, json.JSONDecodeError) as e:
+        log(f"Lecture actions.json impossible : {e}", "ERROR")
+        return False
+    taken = {a.get("name") for a in obj0["actions"]}
+    specs = []   # (path, text, name, group, triggers)
+    for path in paths:
+        base = os.path.basename(path)
+        try:
+            with open(path, "r", encoding="utf-8-sig") as f:
+                text = f.read()
+        except OSError as e:
+            log(f"  Lecture impossible {base} : {e}", "ERROR")
+            continue
+        name, _sub_id, group, triggers = parse_header_full(text)
+        if not name:
+            log(f"  IGNORE {base} : ajoute '// sb-action: <Nom de l'action>' en tete.", "ERROR")
+            continue
+        if DO_LINT:
+            ok, msg = lint_csharp(text)
+            if not ok:
+                log(f"  BLOQUE {base} : C# invalide — {msg}.", "ERROR")
+                continue
+        if name in taken:
+            log(f"  IGNORE {base} : une action nommee '{name}' existe deja (ou en double dans "
+                f"le lot). Pour mettre a jour son code, utilise la synchro normale.", "ERROR")
+            continue
+        taken.add(name)
+        specs.append((path, text, name, group, triggers))
+
+    if not specs:
+        log("Rien a creer.", "WARN")
+        return False
+    log(f"{len(specs)} action(s) a creer.")
+
+    # --- SB ferme (gracieux) + snapshot complet ---
+    safety_backup()
+    stopped = stop_streamerbot()
+    try:
+        obj, had_bom = read_actions()
+        cmds, cmds_bom = read_commands()
+    except (OSError, json.JSONDecodeError) as e:
+        log(f"Lecture impossible apres fermeture SB : {e}", "ERROR")
+        if stopped:
+            launch_streamerbot()
+        return False
+    if cmds is None:
+        log(f"commands.json introuvable : {COMMANDS_JSON}", "ERROR")
+        if stopped:
+            launch_streamerbot()
+        return False
+
+    existing = {a.get("name") for a in obj["actions"]}
+    n_actions, created_cmds, stamps, cmds_touched = 0, [], [], False
+    for path, text, name, group, triggers in specs:
+        if name in existing:
+            log(f"  IGNORE {os.path.basename(path)} : '{name}' existe deja.", "WARN")
+            continue
+        # action + sous-action C# (stamp AVANT encodage -> byteCode == disque)
+        action = new_action(name, group)
+        sa = new_csharp_subaction(action, "")
+        final_text = apply_stamp(text, name, sa["id"])
+        sa["byteCode"] = encode_bytecode(final_text)
+        action["subActions"].append(sa)
+        # triggers (commande chat pris en charge ; autres types ignores)
+        for kind, value in triggers:
+            if kind == "command":
+                cmd_text = value if value.startswith("!") else "!" + value
+                found = find_command(cmds, cmd_text)
+                if found:
+                    cmd_id = found["id"]
+                    log(f"    commande '{cmd_text}' existe deja -> reutilisee.")
+                else:
+                    c = new_command(cmd_text, group)
+                    cmds.setdefault("commands", []).append(c)
+                    cmd_id = c["id"]
+                    created_cmds.append(cmd_text)
+                    cmds_touched = True
+                action["triggers"].append(new_command_trigger(cmd_id))
+            elif kind in EVENT_TRIGGER_TYPES:
+                action["triggers"].append(new_event_trigger(obj, EVENT_TRIGGER_TYPES[kind]))
+                log(f"    trigger evenement '{kind}' (type {EVENT_TRIGGER_TYPES[kind]}) ajoute.")
+            else:
+                supported = "command, " + ", ".join(sorted(EVENT_TRIGGER_TYPES))
+                log(f"    trigger '{kind}' inconnu (ignore). Types : {supported}.", "WARN")
+        obj["actions"].append(action)
+        existing.add(name)
+        if final_text != text:
+            stamps.append((path, final_text))
+        n_actions += 1
+        log(f"  + action '{name}' — {len(action['triggers'])} trigger(s), 1 sous-action C#.")
+
+    if n_actions == 0:
+        log("Aucune action creee.", "WARN")
+        if stopped:
+            launch_streamerbot()
+        return False
+
+    # --- ecriture atomique (actions.json + commands.json si commande creee) ---
+    try:
+        write_actions(obj, had_bom)
+        if cmds_touched:
+            write_commands(cmds, cmds_bom)
+    except OSError as e:
+        log(f"Ecriture impossible : {e}", "ERROR")
+        if stopped:
+            launch_streamerbot()
+        return False
+
+    # stamp des .cs sur disque (futures synchros par GUID)
+    for path, final_text in stamps:
+        try:
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                f.write(final_text)
+        except OSError as e:
+            log(f"  Auto-stamp impossible {os.path.basename(path)} : {e}", "ERROR")
+
+    log(f"{n_actions} action(s) CREEE(S)."
+        + (f" Commande(s) creee(s) : {', '.join(created_cmds)}" if created_cmds else ""))
+    if stopped:
+        launch_streamerbot()
+        log("Streamer.bot relance — les nouvelles actions sont actives.")
+    else:
+        log("Streamer.bot etait deja ferme : demarre-le pour activer les nouvelles actions.", "WARN")
+    return True
+
+
 # ------------------------- process Streamer.bot -------------------------
 # Empeche l'apparition d'une fenetre console (tasklist/taskkill) quand l'appli
 # tourne sans console (ex: lancee via pythonw depuis l'interface).
@@ -431,22 +742,39 @@ def sb_is_running():
         return False
 
 
-def kill_streamerbot():
+def stop_streamerbot(grace=STOP_GRACE_SECONDS):
+    """Arret GRACIEUX de Streamer.bot (ne corrompt pas sa base LiteDB).
+    1) demande de fermeture propre (taskkill SANS /F) -> SB flush ses bases + reecrit ses .json
+    2) attente qu'il quitte vraiment (jusqu'a `grace` s)
+    3) force SEULEMENT en dernier recours (rare si 'Minimize to tray' est decoche).
+    Retourne True si SB a ete arrete (donc a relancer), False s'il etait deja ferme."""
     exe = os.path.basename(SB_EXE)
-    if sys.platform.startswith("win"):
-        r = subprocess.run(["taskkill", "/F", "/IM", exe],
-                           capture_output=True, text=True,
-                           creationflags=CREATE_NO_WINDOW)
-        if r.returncode == 0:
-            log(f"Streamer.bot ({exe}) tue (force).")
-            time.sleep(1.0)
-            return True
-        log(f"Streamer.bot non tue (peut-etre deja ferme) : {r.stdout.strip()} {r.stderr.strip()}")
+    if not sb_is_running():
         return False
-    else:
-        subprocess.run(["pkill", "-f", exe])
-        log("pkill Streamer.bot envoye (Linux).")
+
+    if not sys.platform.startswith("win"):
+        subprocess.run(["pkill", "-f", exe])          # SIGTERM = propre (pas -9)
+        time.sleep(1.0)
         return True
+
+    # 1) fermeture propre
+    subprocess.run(["taskkill", "/IM", exe], capture_output=True, text=True,
+                   creationflags=CREATE_NO_WINDOW)
+    # 2) attente de sortie effective (SB sauvegarde en se fermant)
+    t0 = time.time()
+    while time.time() - t0 < grace:
+        if not sb_is_running():
+            log(f"Streamer.bot ferme proprement en {int(time.time() - t0)}s (sauvegarde OK).")
+            time.sleep(0.5)
+            return True
+        time.sleep(1.0)
+    # 3) dernier recours
+    log("Streamer.bot n'a pas quitte seul (minimise en zone de notif ?) -> fermeture forcee. "
+        "Astuce : decoche 'Minimize to tray' dans SB pour un arret 100% propre.", "WARN")
+    subprocess.run(["taskkill", "/F", "/IM", exe], capture_output=True, text=True,
+                   creationflags=CREATE_NO_WINDOW)
+    time.sleep(1.0)
+    return True
 
 
 def launch_streamerbot():
@@ -992,6 +1320,9 @@ def main():
     p.add_argument("--last", action="store_true", help="synchronise le .cs modifie le plus recemment")
     p.add_argument("--changed", action="store_true", help="synchronise les .cs modifies depuis le dernier commit (git)")
     p.add_argument("--file", help="patch un seul fichier .cs puis quitte")
+    p.add_argument("--create-action", nargs="+", metavar="FICHIER.cs",
+                   help="cree une ou PLUSIEURS nouvelles actions dans SB depuis des .cs "
+                        "(en-tetes // sb-action, // sb-group, // sb-trigger: command !xxx)")
     p.add_argument("--check-duplicates", action="store_true", help="scanne actions.json pour les doublons C#")
     p.add_argument("--doctor", action="store_true", help="diagnostic : desync / non mappes / orphelins / doublons")
     p.add_argument("--diff", action="store_true", help="apercu des ecarts local <-> SB (lecture seule)")
@@ -1035,6 +1366,8 @@ def main():
         return
     if args.discover:
         discover(write=args.write); return
+    if args.create_action:
+        create_actions(args.create_action); return
 
     # --- synchronisations (patch) ---
     if args.file:

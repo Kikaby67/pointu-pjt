@@ -2,7 +2,7 @@
   "nomJoueur": "dada7988",
   "ram": 55,
   "niveau": 3,
-  "experience": 1521,
+  "experience": 1546,
   "classeChoisie": true,
   "classe": "Cryptolame",
   "sousClasseChoisie": false,
@@ -18,22 +18,22 @@
   "agilite": 14,
   "enCombat": false,
   "enQuete": false,
-  "queteId": "artefact_05",
+  "queteId": "entretien_01",
   "queteTicksRestants": 0,
-  "queteDernierTick": 1783529002,
-  "queteTotalPause": 0,
+  "queteDernierTick": 1783887476,
+  "queteTotalPause": 156,
   "quetePauseDebut": 0,
   "queteCooldownFin": 0,
   "enRencontre": false,
   "rencontreType": "",
   "rencontreExpire": 0,
   "compagnonActif": "",
-  "dernierCheckRencontre": 1783529305,
+  "dernierCheckRencontre": 1783888389,
   "reposCooldownFin": 1782651845,
   "queteEventsUsed": 0,
-  "offreValeur": 5,
+  "offreValeur": 0,
   "combatActuel": {
-    "ennemiNom": "Parasite de données",
+    "ennemiNom": "Sentinelle du Castor",
     "ennemiPVActuels": 0,
     "buffActif": false,
     "protectionActive": false,
@@ -49,5 +49,9 @@
     "quetesTerminees": 6
   }
 ,
-  "derniereActivite": 1783529002
+  "derniereActivite": 1783887817
+,
+  "duelDe": ""
+,
+  "duelExpire": 0
 }
