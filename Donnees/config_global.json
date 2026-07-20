@@ -107,5 +107,7 @@
 
   "creation_pv_de": 6,
   "creation_ca_de": 4,
-  "creation_atq_de": 4
+  "creation_atq_de": 4,
+
+  "moderation_timeout_secondes": 300
 }

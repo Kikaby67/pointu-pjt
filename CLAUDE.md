@@ -55,6 +55,9 @@ Pointu-PJT/
 │   ├── Timer_Xp/
 │   │   ├── Timer_XP_visionnage.cs
 │   │   └── tracker_activite.cs      # Twitch Chat Message → met à jour derniereActivite
+│   ├── Moderation/                  # HORS jeu RPG — "Prison de Sagesse" phase A
+│   │   ├── chat_logger.cs           # log complet du chat → JSONL (hors repo)
+│   │   └── timeout_manuel.cs        # timeout 5 min piloté par Touch Portal
 │   └── Reward/
 │       ├── Jet de dé/           # 1d6_PV.cs, 1d4_CA.cs
 │       ├── Bonus +2/            # +2_PV.cs, +2_CA.cs, +2_Attaque.cs
@@ -168,6 +171,7 @@ quete_cooldown_defaite_secondes ← cooldown après défaite (600 = 10 min)
 quete_cooldown_abandon_secondes ← cooldown après !abandon (300 = 5 min)
 timer_xp_gain / timer_regen_pv / timer_regen_mana ← timer 15 min (5 / 2 / 3)
 timer_activite_seuil_secondes (1800) ← inactivité max pour recevoir XP (30 min)
+moderation_timeout_secondes (300) ← durée du timeout manuel (hors jeu RPG, cf. Modération)
 
 rencontre_taux_ennemi (40)     ← % de chance de rencontre ennemie par check
 rencontre_taux_allie (30)      ← % de chance de rencontre alliée (30% = rien)
@@ -863,6 +867,69 @@ Trigger : Channel Point Reward (un fichier par reward)
 - Lit la saisie via `args["rawInput"]` (repli `args["message"]`), aplatit les retours à la ligne.
 - **Append** dans `C:\Users\Florian\Desktop\Stream\Donation goal\DonationGoal.txt` (dossier + fichier créés au besoin).
 - Format d'une ligne : `AAAA-MM-JJ HH:MM | pseudo : suggestion`. Les échanges suivants s'ajoutent à la suite.
+
+---
+
+## Modération — « Prison de Sagesse » (hors jeu RPG)
+
+Feature **indépendante du RPG** : aucun fichier joueur n'est lu ni écrit.
+Déroulement en deux phases ; **seule la phase A est implémentée**.
+
+> ⚠️ **Les logs vivent HORS du repo** (`C:\Users\Florian\Desktop\Stream\Moderation`) : ils
+> contiennent des messages nominatifs de tiers et le repo est **public**. `.gitignore` bloque
+> `*.jsonl` en filet de sécurité. Usage strictement personnel de modération, aucune diffusion.
+
+### Phase A — sourcing & modération manuelle ✅
+
+Objectif : accumuler de la donnée réelle pour bâtir une liste de badwords *pertinente*
+(pas générique) avant toute automatisation.
+
+**`Moderation/chat_logger.cs`** — action silencieuse, append pur, aucune lecture.
+```
+{"ts":"2026-07-20T14:32:11Z","user":"pseudo","userId":"123456","role":"mod","sub":true,"msg":"..."}
+```
+- Rotation mensuelle : `chat_log_AAAA-MM.jsonl`. Horodatage **UTC**.
+- `userId` en plus du pseudo : un pseudo se change, l'ID non.
+- `role` : broadcaster > mod > vip > sub > viewer (repli sur l'entier `role`).
+- `Echapper()` : échappement JSON manuel (pas de Newtonsoft) — sans lui, un `"` d'un viewer
+  casse le fichier. `new UTF8Encoding(false)` : **sans BOM**, sinon la 1re ligne du mois
+  est illisible pour un parseur strict.
+```
+Trigger : Twitch Chat Message (type 133)
+```
+
+**`Moderation/timeout_manuel.cs`** — timeout piloté depuis Touch Portal, aucune détection auto.
+- Lit `timeout_cible.txt`, `Trim()` + retrait du `@`, valide `[a-zA-Z0-9_]` (le pseudo sert
+  d'appel API — même garde-fou que `!duel`), puis `CPH.TwitchTimeoutUser(pseudo, durée, …, bot)`.
+- **Vide le fichier AVANT l'appel** : un échec ne laisse pas la cible « armée ».
+- **Idempotence** : un watcher émet 2 événements par écriture (l'écriture + notre effacement) ;
+  la sortie sur fichier vide garantit **un seul** timeout par clic. Vérifié en log.
+- Journalise dans `timeouts_AAAA-MM.jsonl` (`ok` / `echec` / `pseudo_invalide`).
+  Ce journal est la **vérité terrain** qui servira à construire `badwords.json` en phase B :
+  croisé avec `chat_log`, il donne de la donnée labellisée.
+- Durée : `moderation_timeout_secondes` (config_global), relue à chaque exécution.
+```
+Trigger : File/Folder Watcher → Changed sur timeout_cible.txt
+          (à configurer dans SB → Services : kika-sync ne crée pas ce type de trigger)
+```
+
+**`Tools/tp_timeout.vbs`** — pont Touch Portal → fichier, deux modes dans un seul script :
+| Appel | Comportement | Usage |
+|---|---|---|
+| `wscript tp_timeout.vbs <pseudo>` | silencieux, **aucune fenêtre** | bouton dédié à un récidiviste |
+| `wscript tp_timeout.vbs` | boîte de saisie Windows | bouton générique |
+
+> Touch Portal (v4.6) **n'a aucune action de saisie de texte libre** — vérifié dans *Valeurs*,
+> *Manipulation de texte*, *File IO*, *HTTP*. D'où la boîte `InputBox` côté script.
+> Le `.vbs` est préféré au `.bat` : un `.bat` fait clignoter une console, visible à l'écran en live.
+> Le champ n'est **jamais** pré-rempli avec le dernier viewer : un appui sur Entrée par réflexe
+> sanctionnerait un innocent.
+
+### Phase B — automatisation ⏳ (non implémentée)
+
+À lancer **seulement** quand les logs de la phase A auront produit un `badwords.json` validé :
+détection auto → énigme de sagesse en chat → si le viewer persiste, timeout + overlay OBS
++ scène « prison » + mur des prisonniers (grille de pp, reset mensuel).
 
 ### `Timer_XP_Visionnage.cs` + `tracker_activite.cs` — Timer 15 min
 

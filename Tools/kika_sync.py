@@ -387,6 +387,7 @@ def find_command(cmds_obj, cmd_text):
 EVENT_TRIGGER_TYPES = {
     "follow": 101, "cheer": 102, "bits": 102,
     "sub": 103, "resub": 104, "giftsub": 105, "raid": 107,
+    "chat": 133, "message": 133,
 }
 _ANY_FIELDS = ("min", "max", "monthsGifted")   # -1 = "n'importe quel"
 
@@ -496,6 +497,14 @@ def patch_files(paths, reload_mode, lock):
     if not os.path.exists(ACTIONS_JSON):
         log(f"actions.json introuvable : {ACTIONS_JSON}", "ERROR")
         return
+
+    # Garde-fou Mode B : SB reecrit actions.json depuis sa MEMOIRE en se fermant, donc
+    # tout patch fait pendant qu'il tourne est perdu a la prochaine fermeture. On bascule
+    # automatiquement en Mode A plutot que d'ecrire dans le vide (--lock pour forcer).
+    if reload_mode == "B" and not lock and sb_is_running():
+        log("Mode B demande mais Streamer.bot TOURNE : il ecraserait le patch en se "
+            "fermant. Bascule automatique en Mode A (arret gracieux + relance).", "WARN")
+        reload_mode = "A"
 
     # Mode A : on FERME SB (arret gracieux) AVANT d'ecrire pour qu'il ne puisse pas ecraser le fichier.
     killed = False
