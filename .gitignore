@@ -17,6 +17,11 @@ error.log
 Tools/kika_sync.local.json
 Tools/kika_sync.log
 
+# ─── Profils joueurs : état de jeu mouvant, réécrit en continu par Streamer.bot ───
+# Versionner du state qui change à chaque commande pollue l'historique pour rien.
+# Les fichiers restent sur le disque, ils ne sont simplement plus suivis.
+Donnees/joueurs/*.json
+
 # ─── Modération : logs de chat nominatifs (données de tiers) ───
 # Le repo est PUBLIC. Les logs vivent HORS du repo (Desktop\Stream\Moderation),
 # cette règle reste un filet de sécurité si un .jsonl atterrit ici par erreur.

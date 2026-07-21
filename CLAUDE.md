@@ -33,6 +33,7 @@ Pointu-PJT/
 │   │   ├── Arbonet/             # !arbonet
 │   │   ├── Inventaire/          # !inventaire
 │   │   ├── Equiper/             # !equiper
+│   │   ├── Equipement/          # !equipement (lecture seule)
 │   │   ├── Vendre/              # !vendre
 │   │   ├── Utiliser/            # !utiliser
 │   │   ├── Abandon/             # !abandon
@@ -532,13 +533,13 @@ private int[] GetRecompensesEnnemi(string nom)   // XP/RAM sur victoire !combat
 
 ## Commandes implémentées ✅
 
-### `!bonjour` → `Commande_Bonjour.cs`
+### `!bonjour` → `Commande_bonjour.cs`
 Accueil du viewer. Indique `!rejoindre`.
 ```
 Trigger : Command Triggered → !bonjour
 ```
 
-### `!rejoindre` → `Commande_Rejoindre.cs`
+### `!rejoindre` → `Commande_rejoindre.cs`
 Crée le JSON joueur avec tous les champs (y compris `reposCooldownFin`). Indique `!choisirclasse`.
 ```
 Trigger : Command Triggered → !rejoindre
@@ -554,7 +555,7 @@ Affiche les stats en 4 messages :
 Trigger : Command Triggered → !profil
 ```
 
-### `!choisirclasse [nom]` → `Commande_ChoisirClasse.cs`
+### `!choisirclasse [nom]` → `commande_choisirclasse.cs`
 Lit les stats depuis `config_classes.json`. Jets de dés à la création.
 `args["rawInput"]` contient le nom de la classe en minuscules.
 ```
@@ -741,6 +742,17 @@ Trigger : Command Triggered → !inventaire
 - Recherche insensible à la casse, stocke le nom exact du config
 ```
 Trigger : Command Triggered → !equiper
+```
+
+### `!equipement` → `Commandes/Equipement/commande_equipement.cs`
+Affiche les 3 slots équipés **et le cumul des bonus** — lecture seule, n'écrit jamais dans le profil.
+- Message 1 : `Arme: X [+2atq] · Armure: Y [+1CA] · Accessoire: Rien` (slot vide = `Rien`,
+  item sans bonus = `déco`)
+- Message 2 : `Bonus total : +N atq +N CA +N mana +N charisme` (ou « Aucun bonus d'équipement actif »)
+- Additionne `_attaqueBonus` / `_caBonus` / `_manaBonus` / `_charismeBonus` depuis `config_items.json`
+- Complémentaire de `!inventaire` (qui liste le sac) : ici on ne voit que l'équipé, avec le détail chiffré
+```
+Trigger : Command Triggered → !equipement
 ```
 
 ### `!vendre [nom_item]` → `Commandes/Vendre/commande_vendre.cs`
@@ -931,12 +943,12 @@ Trigger : File/Folder Watcher → Changed sur timeout_cible.txt
 détection auto → énigme de sagesse en chat → si le viewer persiste, timeout + overlay OBS
 + scène « prison » + mur des prisonniers (grille de pp, reset mensuel).
 
-### `Timer_XP_Visionnage.cs` + `tracker_activite.cs` — Timer 15 min
+### `Timer_XP_visionnage.cs` + `tracker_activite.cs` — Timer 15 min
 
 `tracker_activite.cs` est déclenché sur **Twitch Chat Message** (tout message, pas une commande).
 Il enregistre `derniereActivite = maintenant` dans le JSON du joueur à chaque fois qu'il écrit.
 
-`Timer_XP_Visionnage.cs` parcourt les joueurs avec classe et vérifie que `derniereActivite`
+`Timer_XP_visionnage.cs` parcourt les joueurs avec classe et vérifie que `derniereActivite`
 est récent (`< timer_activite_seuil_secondes` = 30 min). Seuls les viewers actifs gagnent :
 +5 XP, vérification montée de niveau.
 Régénération passive si `enCombat != true` : +2 PV (plafonné pvMax) + +3 Mana (plafonné manaMax).
@@ -1117,14 +1129,25 @@ private string ModifierValeurString(string json, string cle, string val)
 ## Discord Bot
 
 Bot Python `discord.py` déployé sur **Discloud** (plan gratuit).
-Lit les profils depuis le repo GitHub public.
+**Aucun lien avec le RPG** : il ne lit ni les profils joueurs ni les configs du jeu.
+C'est un bot de **planning de streams**, autonome, avec son propre `streams.json`.
 
-**Commandes** : `!profil`, `!arbonet`, `!aide`
-**Channel** : `CHANNEL_ID = 1490232175382102016`
+**Slash commands** :
 
-> Le token Discord n'est **pas** versionné dans ce dépôt (fourni à l'exécution, hors code).
+| Commande | Rôle |
+|---|---|
+| `/calendrier` | affiche le planning de la semaine en cours (image générée) |
+| `/addstream` | ajoute un stream au planning — **admin** |
+| `/delstream` | supprime un stream du planning — **admin** |
 
-**Déploiement** : zipper `bot_discord.py` + `discloud.config` + `requirements.txt` → uploader sur discloud.app
+- `calendrier_image.py` génère l'image du planning (`banners/`, `fonts/`).
+- Données dans `streams.json`, **à côté du script** (il part avec le zip Discloud).
+
+> Le token Discord n'est **pas** versionné : lu via `os.getenv("DISCORD_TOKEN")` depuis un
+> `.env` chargé à l'exécution. `.env` est dans `.gitignore`.
+
+**Déploiement** : zipper `bot_discord.py` + `calendrier_image.py` + `discloud.config`
++ `requirements.txt` + `banners/` + `fonts/` → uploader sur discloud.app
 
 ---
 
