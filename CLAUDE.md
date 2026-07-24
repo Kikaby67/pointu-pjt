@@ -64,7 +64,7 @@ Pointu-PJT/
 │       ├── Bonus +2/            # +2_PV.cs, +2_CA.cs, +2_Attaque.cs
 │       └── DonationGoal/        # suggestion_donationgoal.cs (Suggestion de Donation Goal → DonationGoal.txt)
 ├── Donnees/
-│   ├── joueurs/                 # Un .json par joueur (ex: kikabygaming.json)
+│   ├── joueurs/                 # Un .json par joueur (ex: kikabygaming.json) — GIT-IGNORÉ (état de jeu mouvant)
 │   ├── config_classes.json      # ★ Source unique : stats classes + sous-classes
 │   ├── config_ennemis.json      # ★ Source unique : stats tous les ennemis
 │   ├── config_items.json        # ★ Source unique : stats tous les items
@@ -74,6 +74,10 @@ Pointu-PJT/
 │   ├── config_allies.json       # ★ Source unique : paramètres alliés/marchands
 │   ├── secret_recu.txt          # Liste des joueurs ayant reçu l'Ecaille-de-Pointu
 │   └── etat_global.json         # État partagé du boss communautaire (arène)
+├── Docs/
+│   ├── STREAMERBOT_ACTIONS_JSON.md  # Injecter une action dans SB en éditant actions.json (sans kika-sync)
+│   ├── GUIDE_AIDE.md
+│   └── PANNEAU_TWITCH.md
 ├── Lore/
 │   ├── LA_LEGENDE_DE_POINTU_V2.md
 │   ├── FICHES_CLASSES.md
@@ -99,6 +103,10 @@ dotnet run
 ---
 
 ## Conventions de code CRITIQUES — Streamer.bot
+
+> 📄 **Déployer un `.cs` dans Streamer.bot** : l'outil `Tools/kika_sync.py` (synchro auto).
+> Pour comprendre le format `actions.json` et injecter une action à la main sans outil, voir
+> [`Docs/STREAMERBOT_ACTIONS_JSON.md`](Docs/STREAMERBOT_ACTIONS_JSON.md).
 
 ### Règles absolues
 - Chaque fichier est **autonome** — pas de partage de méthodes entre fichiers
