@@ -100,10 +100,17 @@ public class CPHInline
             jsonA = ModifierValeur(jsonA, "duelVers", "", true); // ancien défi périmé → on nettoie
         }
 
-        // === États « dans l'Antre » (les deux) ===
-        if (LireValeur(jsonA, "enQuete") == "true" || LireValeur(jsonA, "enCombat") == "true")
+        // === États : le duel est permis EN QUÊTE, mais pas en plein combat, en repos ou à terre ===
+        if (LireValeur(jsonA, "enCombat") == "true")
         {
-            CPH.SendMessage(nomJoueur + ", tu ne peux lancer un duel que dans l'Antre (hors quête et hors combat).");
+            CPH.SendMessage(nomJoueur + ", tu es en plein combat — termine-le avant de lancer un duel.");
+            return true;
+        }
+        long reposA = long.Parse(LireValeur(jsonA, "reposCooldownFin"));
+        if (reposA > maintenant)
+        {
+            int minutes = (int)Math.Ceiling((reposA - maintenant) / 60.0);
+            CPH.SendMessage(nomJoueur + ", tu récupères encore de ton repos (" + minutes + " min) — pas d'état pour un duel.");
             return true;
         }
         if (int.Parse(LireValeur(jsonA, "pvActuels")) <= 0)
@@ -111,9 +118,14 @@ public class CPHInline
             CPH.SendMessage(nomJoueur + ", tu es à terre ! Repose-toi (!repos) avant de défier qui que ce soit.");
             return true;
         }
-        if (LireValeur(jsonB, "enQuete") == "true" || LireValeur(jsonB, "enCombat") == "true")
+        if (LireValeur(jsonB, "enCombat") == "true")
         {
-            CPH.SendMessage(nomJoueur + ", " + cible + " est occupé (en quête ou en combat) — impossible de le défier.");
+            CPH.SendMessage(nomJoueur + ", " + cible + " est en plein combat — impossible de le défier maintenant.");
+            return true;
+        }
+        if (long.Parse(LireValeur(jsonB, "reposCooldownFin")) > maintenant)
+        {
+            CPH.SendMessage(nomJoueur + ", " + cible + " récupère de son repos — impossible de le défier tout de suite.");
             return true;
         }
         if (int.Parse(LireValeur(jsonB, "pvActuels")) <= 0)

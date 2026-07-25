@@ -36,25 +36,40 @@ public class CPHInline
         string rawInput = args["rawInput"].ToString().Trim();
         if (rawInput == "")
         {
-            CPH.SendMessage(nomJoueur + ", précise l'item à vendre : !vendre [nom]");
+            CPH.SendMessage(nomJoueur + ", précise l'item à vendre : !vendre [nom] [quantité]");
             return true;
         }
 
-        // Chercher dans le sac
+        // Quantité optionnelle en dernier mot : "!vendre Potion 2" → item="Potion", qté=2
+        int    quantite      = 1;
+        string nomItem       = rawInput;
+        int    dernierEspace = rawInput.LastIndexOf(' ');
+        if (dernierEspace > 0)
+        {
+            string finTexte = rawInput.Substring(dernierEspace + 1).Trim();
+            int    q;
+            if (int.TryParse(finTexte, out q))
+            {
+                quantite = q < 1 ? 1 : q;
+                nomItem  = rawInput.Substring(0, dernierEspace).Trim();
+            }
+        }
+
+        // Chercher dans le sac (et compter les exemplaires)
         string   inventaire = LireValeurString(json, "inventaire");
         string[] items      = inventaire == "" ? new string[0] : inventaire.Split(',');
 
-        string itemTrouve  = "";
-        bool   dansLeSac   = false;
+        string itemTrouve = "";
+        int    nbEnStock  = 0;
         foreach (string item in items)
         {
-            if (string.Equals(item.Trim(), rawInput, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(item.Trim(), nomItem, StringComparison.OrdinalIgnoreCase))
             {
-                itemTrouve = item.Trim();
-                dansLeSac  = true;
-                break;
+                if (itemTrouve == "") itemTrouve = item.Trim();
+                nbEnStock++;
             }
         }
+        bool dansLeSac = itemTrouve != "";
 
         // Chercher dans les slots équipés
         string   champSlotTrouve = "";
@@ -64,9 +79,9 @@ public class CPHInline
             foreach (string slot in slots)
             {
                 string equipe = LireValeur(json, slot);
-                if (string.Equals(equipe, rawInput, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(equipe, nomItem, StringComparison.OrdinalIgnoreCase))
                 {
-                    itemTrouve     = equipe;
+                    itemTrouve      = equipe;
                     champSlotTrouve = slot;
                     break;
                 }
@@ -75,7 +90,7 @@ public class CPHInline
 
         if (itemTrouve == "")
         {
-            CPH.SendMessage(nomJoueur + ", \"" + rawInput + "\" n'est ni dans ton sac ni équipé !");
+            CPH.SendMessage(nomJoueur + ", \"" + nomItem + "\" n'est ni dans ton sac ni équipé !");
             return true;
         }
 
@@ -84,14 +99,25 @@ public class CPHInline
         int    prixVente = int.Parse(LireValeur(cfgItems, itemTrouve + "_prixVente"));
         if (prixVente == 0) prixVente = 5; // valeur de secours
 
-        // Retirer l'item
+        int    nbVendus;
+        string noteManque = "";
+
         if (dansLeSac)
         {
+            nbVendus = Math.Min(quantite, nbEnStock);
+            if (quantite > nbEnStock)
+                noteManque = " (tu n'en avais que " + nbEnStock + ")";
+
+            // Retirer nbVendus exemplaires du sac
             string nouvInventaire = "";
-            bool   dejaRetire     = false;
+            int    retires        = 0;
             foreach (string item in items)
             {
-                if (!dejaRetire && item.Trim() == itemTrouve) { dejaRetire = true; continue; }
+                if (retires < nbVendus && string.Equals(item.Trim(), itemTrouve, StringComparison.OrdinalIgnoreCase))
+                {
+                    retires++;
+                    continue;
+                }
                 if (nouvInventaire != "") nouvInventaire += ",";
                 nouvInventaire += item.Trim();
             }
@@ -99,15 +125,19 @@ public class CPHInline
         }
         else
         {
+            nbVendus = 1; // un slot équipé ne contient qu'un exemplaire
+            if (quantite > 1)
+                noteManque = " (objet équipé : 1 seul exemplaire vendu)";
             json = ModifierValeur(json, champSlotTrouve, "", true);
         }
 
-        // Ajouter les RAM
-        json = AjouterValeur(json, "ram", prixVente);
+        int gain = prixVente * nbVendus;
+        json = AjouterValeur(json, "ram", gain);
         File.WriteAllText(cheminFichier, json);
 
-        int ramActuels = int.Parse(LireValeur(json, "ram"));
-        CPH.SendMessage(nomJoueur + " vend " + itemTrouve + " pour " + prixVente + " RAM. Total : " + ramActuels + " RAM.");
+        int    ramActuels = int.Parse(LireValeur(json, "ram"));
+        string libelle    = nbVendus > 1 ? nbVendus + "× " + itemTrouve : itemTrouve;
+        CPH.SendMessage(nomJoueur + " vend " + libelle + " pour " + gain + " RAM" + noteManque + ". Total : " + ramActuels + " RAM.");
 
         return true;
     }

@@ -7,6 +7,7 @@ public class CPHInline
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
     private const string CONFIG_QUETES   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_quetes.json";
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
+    private const string CONFIG_LEVEL    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_level.json";
 
     public bool Execute()
     {
@@ -110,8 +111,9 @@ public class CPHInline
                 int ram = int.Parse(data[3]);
                 json = AjouterValeur(json, "experience", xp);
                 json = AjouterValeur(json, "ram", ram);
-                File.WriteAllText(cheminFichier, json);
                 CPH.SendMessage(nomJoueur + ", ta quête est terminée ! Succès ! Tu gagnes " + xp + " XP et " + ram + " RAM. Bien joué aventurier !");
+                json = VerifierMonteeNiveau(json, nomJoueur);   // annonce + bonus si seuil franchi
+                File.WriteAllText(cheminFichier, json);
             }
             else
             {
@@ -175,6 +177,65 @@ public class CPHInline
             };
         }
         return new string[] { "Quête inconnue", "1", "0", "0", "Arbonet", "service" };
+    }
+
+    // ===== Montée de niveau =====
+    private string VerifierMonteeNiveau(string json, string nomJoueur)
+    {
+        int niveauActuel  = int.Parse(LireValeur(json, "niveau"));
+        int nouvelXP      = int.Parse(LireValeur(json, "experience"));
+        int nouveauNiveau = CalculerNiveau(nouvelXP);
+        if (nouveauNiveau > niveauActuel)
+        {
+            json = ModifierValeur(json, "niveau", nouveauNiveau.ToString(), false);
+            json = AppliquerBonusNiveau(json, nouveauNiveau);
+            CPH.SendMessage(MessageNiveau(nomJoueur, nouveauNiveau));
+        }
+        return json;
+    }
+
+    private int CalculerNiveau(int xp)
+    {
+        string cfg    = File.ReadAllText(CONFIG_LEVEL);
+        int niveauMax = int.Parse(LireValeur(cfg, "niveauMax"));
+        for (int i = niveauMax; i >= 2; i--)
+            if (xp >= int.Parse(LireValeur(cfg, "niveau_" + i + "_xp"))) return i;
+        return 1;
+    }
+
+    private string AppliquerBonusNiveau(string json, int niveau)
+    {
+        string cfg        = File.ReadAllText(CONFIG_LEVEL);
+        int pvBonus       = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_pvBonus"));
+        int caBonus       = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_caBonus"));
+        int ramBonus      = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_ramBonus"));
+        int charismeBonus = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_charismeBonus"));
+        if (pvBonus > 0) { json = AjouterValeur(json, "pvMax", pvBonus); json = AjouterValeur(json, "pvActuels", pvBonus); }
+        if (caBonus       > 0) json = AjouterValeur(json, "classeArmure", caBonus);
+        if (ramBonus      > 0) json = AjouterValeur(json, "ram",          ramBonus);
+        if (charismeBonus > 0) json = AjouterValeur(json, "charisme",     charismeBonus);
+        return json;
+    }
+
+    // Message unique de montée de niveau — identique dans tous les fichiers qui donnent de l'XP
+    private string MessageNiveau(string nomJoueur, int niveau)
+    {
+        string cfg   = File.ReadAllText(CONFIG_LEVEL);
+        string bonus = LireValeur(cfg, "niveau_" + niveau + "_message");
+        if (bonus == "0") bonus = "";
+
+        int stats = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_pvBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_caBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_ramBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_charismeBonus"));
+
+        string msg = "🎉 " + nomJoueur + " gagne 1 niveau (niveau " + niveau + ")";
+        msg += stats > 0 && bonus != ""
+             ? ", augmente sa stat de " + bonus + " et progresse vers le sommet !"
+             : " et progresse vers le sommet !" + (bonus != "" ? " " + bonus : "");
+
+        if (niveau >= int.Parse(LireValeur(cfg, "niveauMax"))) msg += " 👑 Niveau maximum atteint !";
+        return msg;
     }
 
     private string QueteKey(int i)

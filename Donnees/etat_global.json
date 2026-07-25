@@ -8,5 +8,14 @@
   "ordre": "",
   "tourIndex": 0,
   "tourDeadline": 0,
-  "participants": ""
+  "participants": "",
+  "buffCaTours": 0,
+  "buffAtkTours": 0,
+  "buffDesTours": 0,
+  "bossCaMalusTours": 0,
+  "bossAtkMalusTours": 0,
+  "defenseurs": "",
+  "provocateur": "",
+  "bribeSafe": "",
+  "bribeCible": ""
 }

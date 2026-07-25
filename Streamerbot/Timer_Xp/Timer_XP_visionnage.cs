@@ -98,10 +98,24 @@ public class CPHInline
         return json;
     }
 
+    // Message unique de montée de niveau — identique dans tous les fichiers qui donnent de l'XP
     private string MessageNiveau(string nomJoueur, int niveau, string cfgLevel)
     {
         string bonus = LireValeur(cfgLevel, "niveau_" + niveau + "_message");
-        return "🎉 " + nomJoueur + " passe au niveau " + niveau + " ! " + bonus;
+        if (bonus == "0") bonus = "";
+
+        int stats = int.Parse(LireValeur(cfgLevel, "niveau_" + niveau + "_pvBonus"))
+                  + int.Parse(LireValeur(cfgLevel, "niveau_" + niveau + "_caBonus"))
+                  + int.Parse(LireValeur(cfgLevel, "niveau_" + niveau + "_ramBonus"))
+                  + int.Parse(LireValeur(cfgLevel, "niveau_" + niveau + "_charismeBonus"));
+
+        string msg = "🎉 " + nomJoueur + " gagne 1 niveau (niveau " + niveau + ")";
+        msg += stats > 0 && bonus != ""
+             ? ", augmente sa stat de " + bonus + " et progresse vers le sommet !"
+             : " et progresse vers le sommet !" + (bonus != "" ? " " + bonus : "");
+
+        if (niveau >= int.Parse(LireValeur(cfgLevel, "niveauMax"))) msg += " 👑 Niveau maximum atteint !";
+        return msg;
     }
 
     private string EnsureChamp(string json, string cle, string valeurDefaut, bool estTexte)

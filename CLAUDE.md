@@ -52,7 +52,14 @@ Pointu-PJT/
 │   │   ├── spawn_boss.cs        # !spawnboss (streamer) → recrutement
 │   │   ├── commande_arene.cs    # !arene → rejoindre le recrutement
 │   │   ├── commande_attaquer.cs # !attaquer → frapper à son tour
-│   │   └── arena_check.cs       # Timer ArenaCheck (transition/riposte/AFK)
+│   │   ├── commande_defense.cs  # !defense → +CA le temps d'un tour
+│   │   ├── arena_check.cs       # Timer ArenaCheck (transition/riposte/AFK/victoire)
+│   │   └── Capacites/           # 2 capacités par classe (voir section Boss)
+│   │       ├── egidebinaire.cs · provocation.cs           (Hexadécimeur)
+│   │       ├── zeroday.cs · soudoyer.cs                   (Cryptolame)
+│   │       ├── bouledefeu.cs · surcharge.cs               (Hackmancien)
+│   │       ├── restoreup.cs · anatheme.cs                 (Firewaller)
+│   │       └── dansesensuelle.cs · serenadeinsultante.cs  (Algorythmancien)
 │   ├── Timer_Xp/
 │   │   ├── Timer_XP_visionnage.cs
 │   │   └── tracker_activite.cs      # Twitch Chat Message → met à jour derniereActivite
@@ -382,11 +389,23 @@ Fichier : `Donnees/joueurs/{nomJoueur.ToLower()}.json`
   "ordre": "",              // CSV des pseudos dans l'ordre d'initiative
   "tourIndex": 0,           // index du joueur dont c'est le tour (>= nb = riposte boss)
   "tourDeadline": 0,        // timestamp du saut de tour AFK
-  "participants": ""        // CSV "pseudo:degatsCumulés" (pour le top dégâts)
+  "participants": "",       // CSV "pseudo:degatsCumulés" (pour le top dégâts)
+
+  "buffCaTours": 0,         // >0 : +CA groupe actif (Égide) pour N rounds
+  "buffAtkTours": 0,        // >0 : +attaque groupe (Surcharge)
+  "buffDesTours": 0,        // >0 : +jets groupe (Danse sensuelle)
+  "bossCaMalusTours": 0,    // >0 : armure boss réduite (Anathème) → +dégâts par attaque
+  "bossAtkMalusTours": 0,   // >0 : attaque boss réduite (Sérénade) → riposte -%
+  "defenseurs": "",         // CSV des pseudos ayant fait !defense ce round (+CA à la riposte)
+  "provocateur": "",        // pseudo qui a fait !provocation (encaisse seul la riposte)
+  "bribeSafe": "",          // pseudo soudoyé avec succès (épargné par la riposte)
+  "bribeCible": ""          // pseudo dont le !soudoyer a échoué (riposte focalisée sur lui)
 }
 ```
 
-Lu/écrit par les 4 fichiers `Streamerbot/Boss/`. Un seul boss à la fois.
+Lu/écrit par les fichiers `Streamerbot/Boss/` (+ `combat/` pour !soin/!discuter/!fuir). Un seul boss à la fois.
+Les compteurs `*Tours` sont décrémentés à chaque riposte ; les champs de ciblage (`defenseurs`,
+`provocateur`, `bribeSafe`, `bribeCible`) sont remis à zéro après chaque riposte.
 > ⚠️ N'est plus la « rencontre manuelle streamer » d'avant (cette feature n'avait jamais été codée).
 
 ---
@@ -446,6 +465,24 @@ Les **comportements combat** (degatsMax, nbAttaques, soinMax…) sont lus à l'e
 | 8 | 34 000 | +100 Ram |
 | 9 | 48 000 | +3 PV max |
 | 10 | 64 000 | +2 Charisme |
+
+### Annonce de montée de niveau
+
+**Toute** source d'XP doit appeler `VerifierMonteeNiveau` puis annoncer via `MessageNiveau` — le joueur
+reçoit son message quel que soit son état (en quête, en repos, en combat, en arène, hors ligne côté timer).
+
+Format unique (méthode `MessageNiveau`, à copier telle quelle dans chaque fichier) :
+```
+🎉 {pseudo} gagne 1 niveau (niveau {N}), augmente sa stat de {niveau_N_message} et progresse vers le sommet !
+```
+- Palier **sans gain de stat** (niveau 5) : `🎉 {pseudo} gagne 1 niveau (niveau 5) et progresse vers le sommet ! Sous-classe débloquée ! Tape !sousclasse !`
+- Palier `niveauMax` : suffixe ` 👑 Niveau maximum atteint !` ajouté automatiquement (ne pas le remettre dans `niveau_N_message`).
+
+Le libellé du bonus vient de `config_level.json → niveau_N_message` ; la présence d'un gain de stat est
+déduite de `_pvBonus`/`_caBonus`/`_ramBonus`/`_charismeBonus`. **Zéro texte de bonus en dur dans le code.**
+
+Les 7 fichiers concernés : `quest_system.cs`, `quest_timer.cs`, `commande_combat.cs`, `commande_discuter.cs`,
+`commande_accepter.cs` (Vieux Sage + duel), `arena_check.cs`, `Timer_XP_visionnage.cs`.
 
 ```csharp
 private static readonly int[] XP_SEUILS =
@@ -645,7 +682,8 @@ Roll 0–99 contre `rencontre_taux_ennemi` (40) puis `rencontre_taux_allie` (30)
   et jet `< mini_boss_chance` → mini-boss de `rencontre_mini_boss`. Pose `enCombat=true`, `rencontreType="combat"`.
 - **Allié (30%)** : 5 types, quête mise en pause, `enCombat=false`, timeout 2 min.
   - `marchand_potion` : achat Potion → `!accepter` / `!refuser`
-  - `vieux_sage` : offre XP → `!accepter` (double roll XP + risque de perte d'item) / `!refuser` (risque de combat)
+  - `vieux_sage` : offre XP → `!accepter` (double roll XP + risque de perte d'item sac **ou** équipement) / `!refuser` (risque de combat).
+    Apparition **pondérée et rare** via `vieux_sage_frequence_pct` (config_allies, défaut 12 %) — les autres alliés se partagent le reste.
   - `bonus_ram` : bourse de RAM → `!accepter` / `!refuser`
   - `alcove_chene` : mini-repos PV+Mana → `!accepter` / `!refuser`
   - `marchand_classe` (**10% des alliés**, niv 5+) : change de classe via `!choisirclasse [nom]` / `!refuser`
@@ -763,10 +801,12 @@ Affiche les 3 slots équipés **et le cumul des bonus** — lecture seule, n'éc
 Trigger : Command Triggered → !equipement
 ```
 
-### `!vendre [nom_item]` → `Commandes/Vendre/commande_vendre.cs`
+### `!vendre [nom_item] [quantité]` → `Commandes/Vendre/commande_vendre.cs`
 Vend un item du sac ou d'un slot équipé contre des RAM.
 - Cherche d'abord dans l'inventaire (CSV), puis dans les slots équipés
-- Lit `_prixVente` depuis config (défaut 5 RAM)
+- **Quantité optionnelle** (dernier mot numérique) : `!vendre Potion 2` vend 2 Potions et laisse le reste.
+  Plafonnée au stock réel (note « tu n'en avais que N »). Un slot équipé ne vend qu'1 exemplaire.
+- Lit `_prixVente` depuis config (défaut 5 RAM), gain = prix × nb vendus
 - Bloqué si `enCombat == true`
 ```
 Trigger : Command Triggered → !vendre
@@ -817,7 +857,8 @@ Répondent aux offres interactives en quête. Vérifient `offreEnAttente` et `of
 
 **Vieux Sage (`offreEnAttente == "vieux_sage"`) :**
 - `!accepter` → double roll indépendant : `vieux_sage_chance_xp`% → +XP (`offreValeur`) ;
-  `vieux_sage_chance_perte_item`% → perd 1 item aléatoire (les deux peuvent arriver ensemble).
+  `vieux_sage_chance_perte_item`% → perd 1 item aléatoire tiré d'un **pool combiné sac + équipement**
+  (un item équipé volé est retiré de son slot ; les deux rolls peuvent arriver ensemble).
 - `!refuser` → `vieux_sage_chance_combat`% → **pose une rencontre** contre le `Vieux-Sage`
   (3 choix `!combat`/`!discuter`/`!fuir` + `rencontreExpire`) ; sinon il disparaît sans effet.
 
@@ -840,7 +881,8 @@ Duel **amical** entre deux joueurs (aucune perte de PV). Le challenger pose un d
 - Cible parsée depuis `args["rawInput"]` (`@` retiré), **validée** `[a-zA-Z0-9_]` via `EstPseudoValide`
   (anti path traversal — le pseudo construit un chemin de fichier), existe, **≠ soi-même**, pas déjà défiée (`duelDe` vivant)
 - Challenger hors cooldown (`duelCooldownFin`), sans défi sortant déjà en cours (`duelVers`, nettoyé si expiré)
-- Les deux « dans l'Antre » : `enQuete == false`, `enCombat == false`, `pvActuels > 0`
+- Disponibilité des deux joueurs : **duel autorisé en quête**, mais bloqué si `enCombat == true`,
+  en repos (`reposCooldownFin > maintenant`) ou à terre (`pvActuels <= 0`)
 - **Niveau** : `niveauCible == niveauChallenger` **ou** `niveauChallenger + 1` (même niveau ou 1 au-dessus)
 - Pose `duelDe`/`duelExpire` sur la cible + `duelVers` sur le challenger (`duel_expire_secondes`, 60s)
 
@@ -854,7 +896,10 @@ probaChallenger = scoreA * 100 / (scoreA + scoreB)   →   rng.Next(100) < proba
 - Perdant : `+duel_recompense_xp_perdant` (50) XP, `duelsPerdus++`
 - Montée de niveau vérifiée pour les deux · marqueurs de duel nettoyés sur les deux profils
 - **Cooldown 1h posé sur le challenger uniquement à l'acceptation** (`duel_cooldown_secondes`) — refus/expiration ⇒ aucun cooldown
-- Re-validation « dans l'Antre » des deux au moment de l'acceptation (sinon duel annulé)
+- Re-validation des deux au moment de l'acceptation (bloqué si combat/repos/à terre, la quête reste OK ; sinon duel annulé)
+- **Message de victoire commenté** (`CommentaireDuel`) : ajoute une ligne 📜 expliquant l'issue —
+  renversement du pronostic (marge < 0), duel serré (marge ≤ 4), sinon met en avant la stat dominante
+  du vainqueur (attaque / CA / agilité / charisme). Ex. « ses coups d'une puissance brutale ont fini par briser la garde de X. »
 
 **`!refuser`** : nettoie `duelDe`/`duelExpire` (cible) + `duelVers` (challenger), aucun cooldown.
 > Champs config : `config_global.json` (`duel_expire_secondes`, `duel_cooldown_secondes`,
@@ -974,18 +1019,54 @@ Combat **tour par tour** partagé, indépendant des quêtes. État dans `etat_gl
 2. `!arene` → un joueur rejoint (vivant + classe choisie) pendant le recrutement.
 3. Fin du recrutement (`arena_check.cs`) → **ordre d'initiative** = agilité décroissante, égalité = ordre d'arrivée (tri stable) ;
    PV boss = `<boss>_pv` + `boss_pv_par_participant` × nb joueurs.
-4. `!attaquer` → chacun frappe à son tour (refus si pas son tour). AFK > `arene_tour_timeout_secondes` (2 min) → saut auto.
-   Dégâts joueur = `boss_degats_base` + (atk+niveau)×nbAttaques + alea.
+4. **À son tour**, chaque joueur choisit **UNE action** (elle consomme le tour, puis on passe au suivant).
+   AFK > `arene_tour_timeout_secondes` (2 min) → saut auto.
 5. Après le dernier joueur → **riposte boss** (`arena_check.cs`) : total = `<boss>_degatsMax` × nb joueurs,
-   réparti **inversement à la CA effective** (CA haute = encaisse moins). PV à 0 = tombé, retiré de l'ordre.
+   modulé par les buffs/débuffs et le ciblage (voir ci-dessous), réparti **inversement à la CA effective**
+   (CA haute = encaisse moins). PV à 0 = tombé, retiré de l'ordre. Les compteurs `*Tours` sont décrémentés ici.
 6. Boucle jusqu'à boss mort ou groupe anéanti.
-   - **Victoire** (`commande_attaquer.cs`) : XP/RAM de base à TOUS les participants ; bonus + loot `boss_loot_pool` au **meilleur dégâteur**.
+   - **Victoire centralisée** (`arena_check.cs`, au tick suivant le coup fatal) : XP/RAM de base à TOUS les
+     participants ; bonus + loot `boss_loot_pool` au **meilleur dégâteur**. Les commandes d'attaque posent
+     juste `bossPVActuels = 0` puis le timer distribue.
    - **Défaite** : tous à terre, aucune récompense.
 
+**Actions génériques (toutes classes)** — 1 par tour :
+| Commande | Effet (config `boss_*`) |
+|---|---|
+| `!attaquer` | dégâts = `boss_degats_base` + (atk+niveau)×nbAttaques + alea (+ buffs surcharge/danse/anathème) |
+| `!defense` | +`boss_defense_ca_bonus` CA pour soi jusqu'à la riposte de ce round |
+| `!soin` | soigne selon les dés de classe (RollSoin, +danse), coûte `boss_soin_mana` — géré dans `combat/combat_soin.cs` |
+| `!discuter` | `boss_discuter_chance` % → fin **pacifique** (récompense de base aux participants, pas de loot top) ; sinon tour perdu — `combat/commande_discuter.cs` |
+| `!fuir` | quitte l'arène, **−`<boss>_degatsMax`** PV, retiré de l'ordre/participants, **0 récompense** — `combat/combat_fuir.cs` |
+
+**Capacités de classe** (`Boss/Capacites/`, réservées à la classe, coût mana sauf mention) — 1 par tour :
+| Classe | Commande | Effet |
+|---|---|---|
+| Hexadécimeur | `!egidebinaire` | +`boss_egide_ca_bonus` CA groupe (`boss_egide_tours` rounds), `boss_egide_mana` mana |
+| Hexadécimeur | `!provocation` | la prochaine riposte le vise **seul** (groupe épargné), il encaisse ×`boss_provocation_facteur_pct`% — gratuit |
+| Cryptolame | `!zeroday` | crit croissant selon PV manquants du boss : ×(1 + (1−pv%)×`boss_zeroday_crit_facteur`) — gratuit |
+| Cryptolame | `!soudoyer` | paie `boss_soudoyer_ram` RAM, `boss_soudoyer_chance` % → épargné à la riposte ; échec → riposte focalisée sur lui |
+| Hackmancien | `!bouledefeu` | dégâts fixes `boss_bouledefeu_base` + niveau, `boss_bouledefeu_mana` mana |
+| Hackmancien | `!surcharge` | +`boss_surcharge_atk` attaque groupe (`boss_surcharge_tours` rounds), `boss_surcharge_mana` mana |
+| Firewaller | `!restoreup` | +`boss_restoreup_pv` PV à chaque combattant vivant, `boss_restoreup_mana` mana |
+| Firewaller | `!anatheme` | armure boss ↓ : +`boss_anatheme_degats` dégâts/attaque (`boss_anatheme_tours` rounds), `boss_anatheme_mana` mana |
+| Algorythmancien | `!dansesensuelle` | +`boss_danse_bonus` à tous les jets groupe (`boss_danse_tours` rounds), `boss_danse_mana` mana |
+| Algorythmancien | `!serenadeinsultante` | riposte boss −`boss_serenade_reduction_pct`% (`boss_serenade_tours` rounds) + insulte tirée de `config_insultes.json` (séparées par `|`), `boss_serenade_mana` mana |
+
+> ⚠️ Les répliques de `!serenadeinsultante` vivent dans **`Donnees/config_insultes.json`**, **git-ignoré** :
+> le repo est public et le contenu est volontairement trash. Le modèle versionné est
+> `config_insultes.example.json`. Fichier absent = repli sur une réplique neutre en dur, la capacité
+> fonctionne quand même. **Ne jamais remettre ces textes dans `config_global.json`.**
+
 ```
-Triggers : Command → !spawnboss (broadcaster) · !arene · !attaquer
+Triggers : Command → !spawnboss (broadcaster) · !arene · !attaquer · !defense
+           Command → capacités : !egidebinaire · !provocation · !zeroday · !soudoyer · !bouledefeu ·
+                     !surcharge · !restoreup · !anatheme · !dansesensuelle · !serenadeinsultante
+           (!soin · !discuter · !fuir : commandes existantes, désormais context-aware boss)
            Timed Action → ArenaCheck (~10-15s, repeat ; démarre désactivé, activé/désactivé par le code)
 ```
+> ℹ️ `!soin`, `!discuter`, `!fuir` détectent le combat de boss (joueur présent dans `ordre` + phase `combat`)
+> et basculent en logique boss **prioritaire** ; sinon ils gardent leur comportement de rencontre de quête.
 
 ---
 

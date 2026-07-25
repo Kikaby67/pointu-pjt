@@ -107,23 +107,49 @@ public class CPHInline
             }
             if (perd)
             {
+                // Pool combiné : sac (chaque exemplaire) + équipement (3 slots) — le vol touche les deux
                 string   inv   = LireValeurString(json, "inventaire");
-                string[] items = inv == "" ? new string[0] : inv.Split(',');
-                if (items.Length > 0)
+                string[] sac   = inv == "" ? new string[0] : inv.Split(',');
+                string[] slots = { "armeEquipee", "armureEquipee", "accessoireEquipe" };
+
+                System.Collections.Generic.List<string> noms    = new System.Collections.Generic.List<string>();
+                System.Collections.Generic.List<string> sources = new System.Collections.Generic.List<string>(); // "sac" ou nom du slot
+                foreach (string it in sac)
                 {
-                    int    idx      = rng.Next(items.Length);
-                    string perdu    = items[idx].Trim();
-                    string nouvInv  = "";
-                    bool   retire   = false;
-                    foreach (string it in items)
+                    string t = it.Trim();
+                    if (t != "") { noms.Add(t); sources.Add("sac"); }
+                }
+                foreach (string slot in slots)
+                {
+                    string eq = LireValeur(json, slot);
+                    if (eq != "" && eq != "0") { noms.Add(eq); sources.Add(slot); }
+                }
+
+                if (noms.Count > 0)
+                {
+                    int    idx    = rng.Next(noms.Count);
+                    string perdu  = noms[idx];
+                    string source = sources[idx];
+
+                    if (source == "sac")
                     {
-                        if (!retire && it.Trim() == perdu) { retire = true; continue; }
-                        if (nouvInv != "") nouvInv += ",";
-                        nouvInv += it.Trim();
+                        string nouvInv = "";
+                        bool   retire  = false;
+                        foreach (string it in sac)
+                        {
+                            if (!retire && it.Trim() == perdu) { retire = true; continue; }
+                            if (nouvInv != "") nouvInv += ",";
+                            nouvInv += it.Trim();
+                        }
+                        json = ModifierValeurString(json, "inventaire", nouvInv);
                     }
-                    json     = ModifierValeurString(json, "inventaire", nouvInv);
+                    else
+                    {
+                        json = ModifierValeur(json, source, "", true); // vide le slot équipé
+                    }
+
                     msgFinal += (msgFinal != "" ? " Mais" : nomJoueur + ", tu acceptes le marché —")
-                              + " le Vieux Sage s'empare de " + perdu + " en guise de paiement...";
+                              + " le Vieux Sage s'empare de " + perdu + (source != "sac" ? " (équipé)" : "") + " en guise de paiement...";
                 }
             }
             if (!gagne && !perd)
@@ -191,10 +217,11 @@ public class CPHInline
         string jsonA = File.ReadAllText(cheminA);
 
         // Re-validation « dans l'Antre » des deux joueurs
+        // Le duel reste valable en quête, mais pas en plein combat, en repos ou à terre
         string invalide = "";
-        if (LireValeur(jsonA, "enQuete") == "true" || LireValeur(jsonA, "enCombat") == "true" || int.Parse(LireValeur(jsonA, "pvActuels")) <= 0)
+        if (LireValeur(jsonA, "enCombat") == "true" || long.Parse(LireValeur(jsonA, "reposCooldownFin")) > maintenant || int.Parse(LireValeur(jsonA, "pvActuels")) <= 0)
             invalide = challenger + " n'est plus en état de se battre";
-        else if (LireValeur(jsonB, "enQuete") == "true" || LireValeur(jsonB, "enCombat") == "true" || int.Parse(LireValeur(jsonB, "pvActuels")) <= 0)
+        else if (LireValeur(jsonB, "enCombat") == "true" || long.Parse(LireValeur(jsonB, "reposCooldownFin")) > maintenant || int.Parse(LireValeur(jsonB, "pvActuels")) <= 0)
             invalide = cible + " n'est plus en état de se battre";
         if (invalide != "")
         {
@@ -259,9 +286,43 @@ public class CPHInline
         File.WriteAllText(cheminA, jsonA);
         File.WriteAllText(cheminB, jsonB);
 
+        string jsonGagnant  = challengerGagne ? jsonA : jsonB;
+        int    scoreGagnant = challengerGagne ? scoreA : scoreB;
+        int    scorePerdant = challengerGagne ? scoreB : scoreA;
+        string commentaire  = CommentaireDuel(jsonGagnant, cfgItems, gagnant, perdant, scoreGagnant, scorePerdant);
+
         CPH.SendMessage("⚔️ DUEL — " + challenger + " (puissance " + scoreA + ") vs " + cible + " (puissance " + scoreB
             + ") → 🏆 " + gagnant + " l'emporte ! +" + xpG + " XP pour " + gagnant + ", +" + xpP + " XP pour " + perdant + ".");
+        CPH.SendMessage("📜 " + commentaire);
         return true;
+    }
+
+    // Commentaire de saveur expliquant l'issue du duel (le « pourquoi du comment » affiché au chat).
+    // Ex. marge nette côté attaque → « ses coups d'une puissance brutale ont fini par briser la garde de X. »
+    private string CommentaireDuel(string jsonGagnant, string cfgItems, string gagnant, string perdant, int scoreGagnant, int scorePerdant)
+    {
+        int marge = scoreGagnant - scorePerdant;
+        if (marge < 0)
+            return "Contre toute attente, " + gagnant + " renverse le pronostic face à " + perdant + " — la fortune sourit aux audacieux !";
+        if (marge <= 4)
+            return "Duel d'une intensité rare, décidé sur un ultime échange : " + gagnant + " l'emporte d'un cheveu sur " + perdant + ".";
+
+        // Marge nette → on met en avant la stat dominante du vainqueur
+        int atk = int.Parse(LireValeur(jsonGagnant, "bonusAttaque")) + GetBonusItems(jsonGagnant, cfgItems, "attaqueBonus");
+        int ca  = int.Parse(LireValeur(jsonGagnant, "classeArmure")) + GetBonusItems(jsonGagnant, cfgItems, "caBonus");
+        int agi = int.Parse(LireValeur(jsonGagnant, "agilite"));
+        int cha = int.Parse(LireValeur(jsonGagnant, "charisme"))     + GetBonusItems(jsonGagnant, cfgItems, "charismeBonus");
+
+        string raison;
+        if (atk >= ca && atk >= agi && atk >= cha)
+            raison = "ses coups d'une puissance brutale ont fini par briser la garde de " + perdant + ".";
+        else if (ca >= atk && ca >= agi && ca >= cha)
+            raison = "sa défense impénétrable a épuisé " + perdant + ", incapable d'y trouver la faille.";
+        else if (agi >= atk && agi >= ca && agi >= cha)
+            raison = "sa vivacité insaisissable a laissé " + perdant + " frapper dans le vide.";
+        else
+            raison = "son aplomb et son verbe tranchant ont déstabilisé " + perdant + " avant même le premier coup.";
+        return gagnant + " s'impose nettement : " + raison;
     }
 
     // Puissance de combat d'un joueur (formule !combat, sans palier ennemi)
@@ -367,11 +428,25 @@ public class CPHInline
         return json;
     }
 
+    // Message unique de montée de niveau — identique dans tous les fichiers qui donnent de l'XP
     private string MessageNiveau(string nomJoueur, int niveau)
     {
         string cfg   = File.ReadAllText(CONFIG_LEVEL);
         string bonus = LireValeur(cfg, "niveau_" + niveau + "_message");
-        return "🎉 " + nomJoueur + " passe au niveau " + niveau + " ! " + bonus;
+        if (bonus == "0") bonus = "";
+
+        int stats = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_pvBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_caBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_ramBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_charismeBonus"));
+
+        string msg = "🎉 " + nomJoueur + " gagne 1 niveau (niveau " + niveau + ")";
+        msg += stats > 0 && bonus != ""
+             ? ", augmente sa stat de " + bonus + " et progresse vers le sommet !"
+             : " et progresse vers le sommet !" + (bonus != "" ? " " + bonus : "");
+
+        if (niveau >= int.Parse(LireValeur(cfg, "niveauMax"))) msg += " 👑 Niveau maximum atteint !";
+        return msg;
     }
 
     private string LireValeur(string json, string cle)

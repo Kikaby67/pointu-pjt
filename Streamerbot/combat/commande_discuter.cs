@@ -8,6 +8,8 @@ public class CPHInline
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
     private const string CONFIG_ITEMS    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_items.json";
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
+    private const string CONFIG_LEVEL    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_level.json";
+    private const string ETAT_GLOBAL     = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\etat_global.json";
 
     public bool Execute()
     {
@@ -22,6 +24,40 @@ public class CPHInline
 
         string json = File.ReadAllText(cheminFichier);
         json = EnsureChamp(json, "compagnonActif", "", true);
+
+        // === Contexte COMBAT DE BOSS (arène) : amadouer le boss (faible chance de fin pacifique) ===
+        string etatB = File.ReadAllText(ETAT_GLOBAL);
+        if (LireValeur(etatB, "bossActif") == "true" && LireValeurString(etatB, "bossPhase") == "combat")
+        {
+            string pseudoKey = nomJoueur.ToLower();
+            string ordreB = LireValeurString(etatB, "ordre");
+            string[] ordreArr = ordreB == "" ? new string[0] : ordreB.Split(',');
+            if (DansListe(ordreArr, pseudoKey))
+            {
+                int ti = int.Parse(LireValeur(etatB, "tourIndex"));
+                if (ti >= ordreArr.Length) { CPH.SendMessage(nomJoueur + ", tout le monde a agi — riposte imminente !"); return true; }
+                if (ordreArr[ti] != pseudoKey) { CPH.SendMessage(nomJoueur + ", ce n'est pas ton tour ! C'est à " + ordreArr[ti] + " d'agir."); return true; }
+
+                string cfgGb   = File.ReadAllText(CONFIG_GLOBAL);
+                string bossNom = LireValeurString(etatB, "bossNom");
+                int chance = int.Parse(LireValeur(cfgGb, "boss_discuter_chance"));
+                long maintB = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+                if (new Random().Next(100) < chance)
+                {
+                    // Le boss change d'avis → fin PACIFIQUE : récompense de base aux participants (pas de loot top)
+                    DistribuerBase(LireValeurString(etatB, "participants"), cfgGb);
+                    etatB = ReinitEtatBoss(etatB);
+                    File.WriteAllText(ETAT_GLOBAL, etatB);
+                    CPH.DisableTimer("ArenaCheck");
+                    CPH.SendMessage("🕊️ " + nomJoueur + " entraîne " + bossNom + " dans une discussion profonde sur le sens de la vie... et le convainc ! " + bossNom + " renonce au combat. Paix retrouvée.");
+                    return true;
+                }
+
+                AvancerTour(etatB, ordreArr, ti, cfgGb, maintB, "🗣️ " + nomJoueur + " philosophe avec " + bossNom + " sur le sens de la vie... mais le monstre reste de marbre.");
+                return true;
+            }
+        }
 
         if (LireValeur(json, "enCombat") != "true" || LireValeur(json, "enRencontre") != "true")
         {
@@ -107,6 +143,160 @@ public class CPHInline
                 total += int.Parse(LireValeur(cfgItems, item + "_" + stat));
         }
         return total;
+    }
+
+    // ===== Contexte boss (arène) =====
+    private bool DansListe(string[] arr, string pseudo)
+    {
+        foreach (string p in arr) if (p == pseudo) return true;
+        return false;
+    }
+
+    private string AvancerTour(string etat, string[] ordreArr, int tourIndex, string cfgG, long maintenant, string prefix)
+    {
+        int suivant = tourIndex + 1;
+        if (suivant >= ordreArr.Length)
+        {
+            etat = ModifierValeur(etat, "tourIndex", suivant.ToString(), false);
+            etat = ModifierValeur(etat, "tourDeadline", maintenant.ToString(), false);
+            File.WriteAllText(ETAT_GLOBAL, etat);
+            CPH.SendMessage(prefix + " ⏳ Tous ont agi — " + LireValeurString(etat, "bossNom") + " prépare sa riposte !");
+        }
+        else
+        {
+            int timeout = int.Parse(LireValeur(cfgG, "arene_tour_timeout_secondes"));
+            etat = ModifierValeur(etat, "tourIndex", suivant.ToString(), false);
+            etat = ModifierValeur(etat, "tourDeadline", (maintenant + timeout).ToString(), false);
+            File.WriteAllText(ETAT_GLOBAL, etat);
+            CPH.SendMessage(prefix + " ➡️ Au tour de " + ordreArr[suivant] + " ! (!attaquer, !defense, !soin, !discuter, !fuir ou ta capacité)");
+        }
+        return etat;
+    }
+
+    // Récompense de base (fin pacifique) : XP/RAM à tous les participants, pas de bonus top ni de loot
+    private void DistribuerBase(string participants, string cfgG)
+    {
+        if (participants == "") return;
+        int baseXp  = int.Parse(LireValeur(cfgG, "boss_recompense_base_xp"));
+        int baseRam = int.Parse(LireValeur(cfgG, "boss_recompense_base_ram"));
+        foreach (string p in participants.Split(','))
+        {
+            string[] kv = p.Split(':');
+            if (kv.Length != 2) continue;
+            string chemin = Path.Combine(DOSSIER_JOUEURS, kv[0] + ".json");
+            if (!File.Exists(chemin)) continue;
+            string pj = File.ReadAllText(chemin);
+            pj = AjouterValeur(pj, "experience", baseXp);
+            pj = AjouterValeur(pj, "ram", baseRam);
+            pj = VerifierMonteeNiveau(pj, kv[0]);
+            File.WriteAllText(chemin, pj);
+        }
+        CPH.SendMessage("🏆 Récompense de base pour tous les participants : +" + baseXp + " XP, +" + baseRam + " RAM.");
+    }
+
+    private string ReinitEtatBoss(string etat)
+    {
+        etat = ModifierValeur(etat, "bossActif", "false", false);
+        etat = ModifierValeurString(etat, "bossPhase", "");
+        etat = ModifierValeurString(etat, "bossNom", "");
+        etat = ModifierValeur(etat, "bossPVMax", "0", false);
+        etat = ModifierValeur(etat, "bossPVActuels", "0", false);
+        etat = ModifierValeur(etat, "areneFin", "0", false);
+        etat = ModifierValeurString(etat, "ordre", "");
+        etat = ModifierValeur(etat, "tourIndex", "0", false);
+        etat = ModifierValeur(etat, "tourDeadline", "0", false);
+        etat = ModifierValeurString(etat, "participants", "");
+        etat = ModifierValeur(etat, "buffCaTours", "0", false);
+        etat = ModifierValeur(etat, "buffAtkTours", "0", false);
+        etat = ModifierValeur(etat, "buffDesTours", "0", false);
+        etat = ModifierValeur(etat, "bossCaMalusTours", "0", false);
+        etat = ModifierValeur(etat, "bossAtkMalusTours", "0", false);
+        etat = ModifierValeurString(etat, "defenseurs", "");
+        etat = ModifierValeurString(etat, "provocateur", "");
+        etat = ModifierValeurString(etat, "bribeSafe", "");
+        etat = ModifierValeurString(etat, "bribeCible", "");
+        return etat;
+    }
+
+    private string AjouterValeur(string json, string cle, int montant)
+    {
+        string marqueur = "\"" + cle + "\": ";
+        int posDebut = json.IndexOf(marqueur);
+        if (posDebut == -1) return json;
+        posDebut += marqueur.Length;
+        int posFin = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
+        string ancienneStr = json.Substring(posDebut, posFin - posDebut).Trim().Trim('"');
+        int ancienne = int.TryParse(ancienneStr, out int v) ? v : 0;
+        return json.Substring(0, posDebut) + (ancienne + montant).ToString() + json.Substring(posDebut + (posFin - posDebut));
+    }
+
+    private string VerifierMonteeNiveau(string json, string nomJoueur)
+    {
+        int niveauActuel  = int.Parse(LireValeur(json, "niveau"));
+        int nouvelXP      = int.Parse(LireValeur(json, "experience"));
+        int nouveauNiveau = CalculerNiveau(nouvelXP);
+        if (nouveauNiveau > niveauActuel)
+        {
+            json = ModifierValeur(json, "niveau", nouveauNiveau.ToString(), false);
+            json = AppliquerBonusNiveau(json, nouveauNiveau);
+            CPH.SendMessage(MessageNiveau(nomJoueur, nouveauNiveau));
+        }
+        return json;
+    }
+
+    private int CalculerNiveau(int xp)
+    {
+        string cfg    = File.ReadAllText(CONFIG_LEVEL);
+        int niveauMax = int.Parse(LireValeur(cfg, "niveauMax"));
+        for (int i = niveauMax; i >= 2; i--)
+            if (xp >= int.Parse(LireValeur(cfg, "niveau_" + i + "_xp"))) return i;
+        return 1;
+    }
+
+    private string AppliquerBonusNiveau(string json, int niveau)
+    {
+        string cfg        = File.ReadAllText(CONFIG_LEVEL);
+        int pvBonus       = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_pvBonus"));
+        int caBonus       = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_caBonus"));
+        int ramBonus      = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_ramBonus"));
+        int charismeBonus = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_charismeBonus"));
+        if (pvBonus > 0) { json = AjouterValeur(json, "pvMax", pvBonus); json = AjouterValeur(json, "pvActuels", pvBonus); }
+        if (caBonus       > 0) json = AjouterValeur(json, "classeArmure", caBonus);
+        if (ramBonus      > 0) json = AjouterValeur(json, "ram",          ramBonus);
+        if (charismeBonus > 0) json = AjouterValeur(json, "charisme",     charismeBonus);
+        return json;
+    }
+
+    // Message unique de montée de niveau — identique dans tous les fichiers qui donnent de l'XP
+    private string MessageNiveau(string nomJoueur, int niveau)
+    {
+        string cfg   = File.ReadAllText(CONFIG_LEVEL);
+        string bonus = LireValeur(cfg, "niveau_" + niveau + "_message");
+        if (bonus == "0") bonus = "";
+
+        int stats = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_pvBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_caBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_ramBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_charismeBonus"));
+
+        string msg = "🎉 " + nomJoueur + " gagne 1 niveau (niveau " + niveau + ")";
+        msg += stats > 0 && bonus != ""
+             ? ", augmente sa stat de " + bonus + " et progresse vers le sommet !"
+             : " et progresse vers le sommet !" + (bonus != "" ? " " + bonus : "");
+
+        if (niveau >= int.Parse(LireValeur(cfg, "niveauMax"))) msg += " 👑 Niveau maximum atteint !";
+        return msg;
+    }
+
+    private string ModifierValeurString(string json, string cle, string val)
+    {
+        string marqueur = "\"" + cle + "\": \"";
+        int posDebut    = json.IndexOf(marqueur);
+        if (posDebut == -1) return json;
+        posDebut       += marqueur.Length;
+        int posFin      = json.IndexOf("\"", posDebut);
+        if (posFin == -1) return json;
+        return json.Substring(0, posDebut) + val + json.Substring(posFin);
     }
 
     private int Clamp(int v, int min, int max)

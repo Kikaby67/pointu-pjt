@@ -65,11 +65,39 @@ public class CPHInline
         etat = ModifierValeur(etat, "tourIndex", "0", false);
         etat = ModifierValeur(etat, "tourDeadline", "0", false);
         etat = ModifierValeurString(etat, "participants", "");
+        // Buffs/debuffs et cibles de riposte (remis à zéro à chaque nouveau boss)
+        etat = EnsureChamp(etat, "buffCaTours",      "0", false);
+        etat = EnsureChamp(etat, "buffAtkTours",     "0", false);
+        etat = EnsureChamp(etat, "buffDesTours",     "0", false);
+        etat = EnsureChamp(etat, "bossCaMalusTours", "0", false);
+        etat = EnsureChamp(etat, "bossAtkMalusTours","0", false);
+        etat = EnsureChamp(etat, "defenseurs",  "", true);
+        etat = EnsureChamp(etat, "provocateur", "", true);
+        etat = EnsureChamp(etat, "bribeSafe",   "", true);
+        etat = EnsureChamp(etat, "bribeCible",  "", true);
+        etat = ModifierValeur(etat, "buffCaTours",      "0", false);
+        etat = ModifierValeur(etat, "buffAtkTours",     "0", false);
+        etat = ModifierValeur(etat, "buffDesTours",     "0", false);
+        etat = ModifierValeur(etat, "bossCaMalusTours", "0", false);
+        etat = ModifierValeur(etat, "bossAtkMalusTours","0", false);
+        etat = ModifierValeurString(etat, "defenseurs",  "");
+        etat = ModifierValeurString(etat, "provocateur", "");
+        etat = ModifierValeurString(etat, "bribeSafe",   "");
+        etat = ModifierValeurString(etat, "bribeCible",  "");
         File.WriteAllText(ETAT_GLOBAL, etat);
 
         CPH.EnableTimer("ArenaCheck");
         CPH.SendMessage("🚨 BOSS À L'HORIZON ! " + bossNom + " approche d'Arbonet ! Tapez !arene pour rejoindre la bataille — vous avez " + (recrut / 60) + " minutes pour vous rassembler !");
         return true;
+    }
+
+    // Insère un champ s'il est absent (anciens etat_global.json)
+    private string EnsureChamp(string json, string cle, string valeurDefaut, bool estTexte)
+    {
+        if (json.Contains("\"" + cle + "\"")) return json;
+        int    pos = json.LastIndexOf('}');
+        string val = estTexte ? "\"" + valeurDefaut + "\"" : valeurDefaut;
+        return json.Substring(0, pos) + ",\n  \"" + cle + "\": " + val + "\n}";
     }
 
     private string LireValeur(string json, string cle)

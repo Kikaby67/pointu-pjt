@@ -109,11 +109,17 @@ public class CPHInline
                 {
                     // — Rencontre alliée (30%) —
                     int niveauJoueur = int.Parse(LireValeur(json, "niveau"));
-                    string[] poolBase = { "marchand_potion", "vieux_sage", "bonus_ram", "alcove_chene" };
-                    // marchand_classe : 10% des rencontres alliées (niv 5+), 90% → pool de base
-                    string type = (niveauJoueur >= 5 && rng.Next(100) < 10)
-                        ? "marchand_classe"
-                        : poolBase[rng.Next(poolBase.Length)];
+                    // Sélection pondérée : vieux_sage rendu plus rare (config), marchand_classe niv 5+
+                    int vieuxSageFreq = int.Parse(LireValeur(cfgAllies, "vieux_sage_frequence_pct"));
+                    if (vieuxSageFreq == 0) vieuxSageFreq = 12;
+                    string[] poolBase = { "marchand_potion", "bonus_ram", "alcove_chene" };
+                    string type;
+                    if (niveauJoueur >= 5 && rng.Next(100) < 10)
+                        type = "marchand_classe";
+                    else if (rng.Next(100) < vieuxSageFreq)
+                        type = "vieux_sage";
+                    else
+                        type = poolBase[rng.Next(poolBase.Length)];
 
                     int    offreVal = 0;
                     string msg      = "";
@@ -321,11 +327,25 @@ public class CPHInline
         return json;
     }
 
+    // Message unique de montée de niveau — identique dans tous les fichiers qui donnent de l'XP
     private string MessageNiveau(string nomJoueur, int niveau)
     {
         string cfg   = File.ReadAllText(CONFIG_LEVEL);
         string bonus = LireValeur(cfg, "niveau_" + niveau + "_message");
-        return "🎉 " + nomJoueur + " passe au niveau " + niveau + " ! " + bonus;
+        if (bonus == "0") bonus = "";
+
+        int stats = int.Parse(LireValeur(cfg, "niveau_" + niveau + "_pvBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_caBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_ramBonus"))
+                  + int.Parse(LireValeur(cfg, "niveau_" + niveau + "_charismeBonus"));
+
+        string msg = "🎉 " + nomJoueur + " gagne 1 niveau (niveau " + niveau + ")";
+        msg += stats > 0 && bonus != ""
+             ? ", augmente sa stat de " + bonus + " et progresse vers le sommet !"
+             : " et progresse vers le sommet !" + (bonus != "" ? " " + bonus : "");
+
+        if (niveau >= int.Parse(LireValeur(cfg, "niveauMax"))) msg += " 👑 Niveau maximum atteint !";
+        return msg;
     }
 
     // [0]=nom [1]=ticks [2]=xp [3]=ram [4]=demandeur [5]=type

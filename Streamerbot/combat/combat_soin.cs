@@ -8,6 +8,7 @@ public class CPHInline
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
     private const string CONFIG_CLASSES  = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_classes.json";
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
+    private const string ETAT_GLOBAL     = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\etat_global.json";
 
     public bool Execute()
     {
@@ -26,6 +27,41 @@ public class CPHInline
         {
             CPH.SendMessage(nomJoueur + ", choisis d'abord une classe avec !choisirclasse !");
             return true;
+        }
+
+        // === Contexte COMBAT DE BOSS (arène) — le soin consomme le tour ===
+        string etatB = File.ReadAllText(ETAT_GLOBAL);
+        if (LireValeur(etatB, "bossActif") == "true" && LireValeurString(etatB, "bossPhase") == "combat")
+        {
+            string pseudoKey = nomJoueur.ToLower();
+            string ordreB = LireValeurString(etatB, "ordre");
+            string[] ordreArr = ordreB == "" ? new string[0] : ordreB.Split(',');
+            if (DansListe(ordreArr, pseudoKey))
+            {
+                int ti = int.Parse(LireValeur(etatB, "tourIndex"));
+                if (ti >= ordreArr.Length) { CPH.SendMessage(nomJoueur + ", tout le monde a agi — riposte imminente !"); return true; }
+                if (ordreArr[ti] != pseudoKey) { CPH.SendMessage(nomJoueur + ", ce n'est pas ton tour ! C'est à " + ordreArr[ti] + " d'agir."); return true; }
+
+                string cfgGb = File.ReadAllText(CONFIG_GLOBAL);
+                int coutB  = int.Parse(LireValeur(cfgGb, "boss_soin_mana"));
+                int manaB  = int.Parse(LireValeur(json, "manaActuels"));
+                int pvB    = int.Parse(LireValeur(json, "pvActuels"));
+                int pvMaxB = int.Parse(LireValeur(json, "pvMax"));
+                if (pvB >= pvMaxB) { CPH.SendMessage(nomJoueur + ", tu as déjà tous tes PV (" + pvB + "/" + pvMaxB + ") ! Choisis une autre action."); return true; }
+                if (manaB < coutB) { CPH.SendMessage(nomJoueur + ", pas assez de mana pour te soigner (" + manaB + "/" + coutB + ")."); return true; }
+
+                Random rngB = new Random();
+                int soin = RollSoin(LireValeur(json, "classe"), LireValeur(json, "sousClasse"), rngB);
+                if (int.Parse(LireValeur(etatB, "buffDesTours")) > 0) soin += int.Parse(LireValeur(cfgGb, "boss_danse_bonus"));
+                int nvPvB = Math.Min(pvB + soin, pvMaxB);
+                json = ModifierValeur(json, "pvActuels",   nvPvB.ToString(),          false);
+                json = ModifierValeur(json, "manaActuels", (manaB - coutB).ToString(), false);
+                File.WriteAllText(cheminFichier, json);
+
+                long maintB = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                AvancerTour(etatB, ordreArr, ti, cfgGb, maintB, "💚 " + nomJoueur + " se soigne +" + (nvPvB - pvB) + " PV → " + nvPvB + "/" + pvMaxB + " PV !");
+                return true;
+            }
         }
 
         // Soin désormais HORS combat uniquement
@@ -77,6 +113,44 @@ public class CPHInline
         int soinBonus = int.Parse(LireValeur(cfg, key + "_soinBonus"));
         if (soinMax == 0) soinMax = int.Parse(LireValeur(cfgG, "soin_max_defaut"));
         return rng.Next(1, soinMax + 1) + soinBonus;
+    }
+
+    private string AvancerTour(string etat, string[] ordreArr, int tourIndex, string cfgG, long maintenant, string prefix)
+    {
+        int suivant = tourIndex + 1;
+        if (suivant >= ordreArr.Length)
+        {
+            etat = ModifierValeur(etat, "tourIndex", suivant.ToString(), false);
+            etat = ModifierValeur(etat, "tourDeadline", maintenant.ToString(), false);
+            File.WriteAllText(ETAT_GLOBAL, etat);
+            CPH.SendMessage(prefix + " ⏳ Tous ont agi — " + LireValeurString(etat, "bossNom") + " prépare sa riposte !");
+        }
+        else
+        {
+            int timeout = int.Parse(LireValeur(cfgG, "arene_tour_timeout_secondes"));
+            etat = ModifierValeur(etat, "tourIndex", suivant.ToString(), false);
+            etat = ModifierValeur(etat, "tourDeadline", (maintenant + timeout).ToString(), false);
+            File.WriteAllText(ETAT_GLOBAL, etat);
+            CPH.SendMessage(prefix + " ➡️ Au tour de " + ordreArr[suivant] + " ! (!attaquer, !defense, !soin, !discuter, !fuir ou ta capacité)");
+        }
+        return etat;
+    }
+
+    private bool DansListe(string[] arr, string pseudo)
+    {
+        foreach (string p in arr) if (p == pseudo) return true;
+        return false;
+    }
+
+    private string LireValeurString(string json, string cle)
+    {
+        string marqueur = "\"" + cle + "\": \"";
+        int posDebut    = json.IndexOf(marqueur);
+        if (posDebut == -1) return "";
+        posDebut       += marqueur.Length;
+        int posFin      = json.IndexOf("\"", posDebut);
+        if (posFin == -1) return "";
+        return json.Substring(posDebut, posFin - posDebut);
     }
 
     private string LireValeur(string json, string cle)

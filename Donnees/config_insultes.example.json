@@ -1,0 +1,4 @@
+{
+  "_commentaire": "Modele de config_insultes.json (lui, git-ignore). Copier ce fichier en config_insultes.json et y mettre tes propres repliques. Separateur : |",
+  "boss_serenade_insultes": "Ta carte mère tourne encore à la manivelle !|Même Hector-Pierre Castor a refusé de te débugger !|Tu as plus de bugs qu'un chêne-serveur en panne."
+}

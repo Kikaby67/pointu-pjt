@@ -22,6 +22,10 @@ Tools/kika_sync.log
 # Les fichiers restent sur le disque, ils ne sont simplement plus suivis.
 Donnees/joueurs/*.json
 
+# ─── Répliques de la Sérénade insultante (contenu trash, repo PUBLIC) ───
+# Le modèle versionné est Donnees/config_insultes.example.json.
+Donnees/config_insultes.json
+
 # ─── Modération : logs de chat nominatifs (données de tiers) ───
 # Le repo est PUBLIC. Les logs vivent HORS du repo (Desktop\Stream\Moderation),
 # cette règle reste un filet de sécurité si un .jsonl atterrit ici par erreur.
