@@ -237,7 +237,15 @@ public class CPHInline
                 json = AjouterValeur(json, "quetesTerminees", 1);
                 json = VerifierMonteeNiveau(json, nomJoueur);
 
-                string lootMsg = "";
+                string cfgQr = File.ReadAllText(CONFIG_QUETES);
+                string keyR  = QueteKeyDeId(cfgQr, queteId);
+                json = EnsureChamp(json, "quetesFaites", "", true);
+
+                // Artefacts et secondaires ne se refont pas ; les services, si.
+                if (data[5] != "service") json = MarquerFaite(json, queteId);
+
+                // Une secondaire paie en equipement : 1 item du pool de sa zone.
+                string lootMsg = RecompenseItem(ref json, cfgQr, keyR, rng, maxSac);
                 if (data[5] == "artefact" && rng.Next(100) < chanceLootArtefact)
                 {
                     string inventaire = LireValeurString(json, "inventaire");
@@ -302,13 +310,15 @@ public class CPHInline
                 File.WriteAllText(chemin, json);
                 // Fin de quête : TOUJOURS son propre message, jamais groupée. C'est le moment
                 // de récompense — il doit rester lisible. Le demandeur du lore prend la parole.
-                CPH.SendMessage(TexteLore(data[6], "succes", rng) + " " + nomJoueur
+                CPH.SendMessage(TexteResolution(cfgQr, keyR, "succes", data[6], rng) + " " + nomJoueur
                               + " +" + xp + " XP · +" + ram + " RAM." + lootMsg);
             }
             else
             {
                 File.WriteAllText(chemin, json);
-                CPH.SendMessage(TexteLore(data[6], "echec", rng) + " " + nomJoueur + " repart bredouille.");
+                string cfgQe = File.ReadAllText(CONFIG_QUETES);
+                CPH.SendMessage(TexteResolution(cfgQe, QueteKeyDeId(cfgQe, queteId), "echec", data[6], rng)
+                              + " " + nomJoueur + " repart bredouille.");
             }
           }
           catch (Exception ex)
@@ -466,6 +476,62 @@ public class CPHInline
     }
 
     // [0]=nom [1]=ticks [2]=xp [3]=ram [4]=demandeur [5]=type [6]=demandeurCle (textes du lore)
+    // Retrouve la cle quete0NN correspondant a un _id (pour lire les champs annexes).
+    private string QueteKeyDeId(string cfg, string id)
+    {
+        for (int i = 1; i <= 99; i++)
+        {
+            string key = QueteKey(i);
+            string qid = LireValeurString(cfg, key + "_id");
+            if (qid == "") break;
+            if (qid == id) return key;
+        }
+        return "";
+    }
+
+    private bool EstFaite(string json, string qid)
+    {
+        string faites = LireValeurString(json, "quetesFaites");
+        if (faites == "" || qid == "") return false;
+        foreach (string f in faites.Split(','))
+            if (f.Trim() == qid) return true;
+        return false;
+    }
+
+    private string MarquerFaite(string json, string qid)
+    {
+        if (EstFaite(json, qid)) return json;
+        string faites = LireValeurString(json, "quetesFaites");
+        return ModifierValeurString(json, "quetesFaites", faites == "" ? qid : faites + "," + qid);
+    }
+
+    // Texte de resolution PROPRE a la quete ; a defaut, la replique du PNJ.
+    private string TexteResolution(string cfgQ, string key, string genre, string demandeurCle, Random rng)
+    {
+        string t = LireValeurString(cfgQ, key + "_texte" + (genre == "succes" ? "Victoire" : "Echec"));
+        if (t != "") return t;
+        return TexteLore(demandeurCle, genre, rng);
+    }
+
+    // Recompense en equipement des secondaires : 1 item du pool de la zone.
+    private string RecompenseItem(ref string json, string cfgQ, string key, Random rng, int maxSac)
+    {
+        string pool = LireValeurString(cfgQ, key + "_recompensePool");
+        if (pool == "") return "";                       // le Desert paie en RAM, pas en objet
+
+        string brut = LireValeurString(cfgQ, pool);
+        if (brut == "") return "";
+
+        string inv = LireValeurString(json, "inventaire");
+        int nb = inv == "" ? 0 : inv.Split(',').Length;
+        if (nb >= maxSac) return " (sac plein, la recompense est perdue !)";
+
+        string[] items = brut.Split(',');
+        string item = items[rng.Next(items.Length)].Trim();
+        json = ModifierValeurString(json, "inventaire", inv == "" ? item : inv + "," + item);
+        return " \U0001F381 " + item + " !";
+    }
+
     private string[] GetQueteData(string id)
     {
         string cfg = File.ReadAllText(CONFIG_QUETES);

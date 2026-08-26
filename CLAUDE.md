@@ -780,10 +780,44 @@ ne s'achète que chez Faîne) : ses services rapportent 100 RAM et sont répéta
 
 > 1 tick = 5 minutes réelles
 
-> ⚠️ **Le moteur ne lit encore ni `_zone`, ni `_texteVictoire`, ni les conditions d'artefact,
-> ni la non-répétabilité.** `quest_system.cs` tire au hasard dans les 72 : un niveau 1 peut recevoir
-> l'artefact du Marais. **Ne pas streamer avant l'étape de code** (pondération par zone, `quetesFaites`,
-> déblocage d'artefact, textes par quête, récompense item).
+### Tirage d'une quête — `quest_system.cs` ✅
+
+Le tirage n'est plus aléatoire sur les 72 : il **filtre** puis **pondère**.
+
+**Filtre** (`QueteEligible`) — une quête est écartée si :
+- le niveau du joueur est sous `zone_<zone>_niveau_min` ;
+- c'est une quête du **Désert** et `etat_global.desertDecouvert != true` (la caravane n'est pas passée) ;
+- elle est déjà dans `quetesFaites` **et** n'est pas un `service` (seuls les services se refont) ;
+- c'est un **artefact** et l'une de ses conditions manque : `_niveauMin`, `_quetesMin`,
+  `_equipementComplet` (les 3 slots remplis, n'importe quel palier), `_requiert` (artefact précédent).
+
+**Pondération** — `quete_poids_zone_courante` (75 %) vers la zone la plus avancée que le niveau
+débloque ; les 25 % restants vont aux zones précédentes, qui ne se ferment jamais. Si un seul des
+deux paquets est non vide, il prend tout. Aucune quête éligible → message invitant à monter en niveau.
+
+> Le **Désert est hors progression linéaire** (`quete_zone_speciale`) : il n'est jamais « la zone
+> courante », ses quêtes arrivent par le paquet des autres zones une fois la caravane passée.
+
+**Paliers de zone** : Arbonet 1 · Plaines 4 · Lacs 6 · Montagne 7 · Désert 6 (+ découverte) · Marais 9.
+
+### Résolution — `quest_system.cs` **et** `quest_timer.cs`
+
+⚠️ La résolution est **dupliquée** dans les deux fichiers (le timer résout tout seul ; `!quete`
+résout aussi si le joueur retape la commande après l'échéance). **Toute modification doit être
+reportée dans les deux.**
+
+- `_texteVictoire` / `_texteEchec` de la quête sont **prioritaires** ; à défaut, la réplique du
+  PNJ (`config_lore_textes`) sert de repli (`TexteResolution`).
+- Succès d'une **secondaire** → 1 item tiré dans `_recompensePool` (`RecompenseItem`). Sac plein :
+  la récompense est perdue, et le message le dit. Le **Désert** n'a pas de pool — il paie en RAM.
+- Succès d'un **artefact** ou d'une **secondaire** → `MarquerFaite` ajoute l'`_id` à `quetesFaites`
+  (CSV du profil, créé par `EnsureChamp`). Les **services** ne sont jamais marqués : ils restent farmables.
+
+> ℹ️ **Arme de départ** : `!choisirclasse` équipe déjà `<Classe>_typeArme` dans `armeEquipee`, et ces
+> armes (`Épée-octet`, `Double-Dagues`…) **existent** dans `config_items` avec **+1 attaque**. Sous
+> l'ancienne formule à division entière ce +1 était invisible ; avec le système de puissance il vaut
+> +0,9 %. Le slot arme est donc rempli dès la création — seuls l'armure et l'accessoire manquent pour
+> débloquer le premier artefact.
 ```
 Trigger : Command Triggered → !quete
 ```

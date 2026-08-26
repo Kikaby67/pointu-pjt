@@ -44,12 +44,15 @@
   "boutique_catalogue": "loot_legendaire",
   "caravane_achats_par_ouverture": 1,
 
+  "quete_poids_zone_courante": 75,
+  "quete_zone_speciale": "Désert",
+
   "zone_ordre": "Arbonet,Plaines,Lacs,Montagne,Désert,Marais",
   "zone_arbonet_niveau_min": 1,
-  "zone_plaines_niveau_min": 3,
-  "zone_lacs_niveau_min": 5,
-  "zone_montagne_niveau_min": 6,
-  "zone_desert_niveau_min": 7,
+  "zone_plaines_niveau_min": 4,
+  "zone_lacs_niveau_min": 6,
+  "zone_montagne_niveau_min": 7,
+  "zone_desert_niveau_min": 6,
   "zone_marais_niveau_min": 9,
 
   "mini_boss_niveau_min": 5,

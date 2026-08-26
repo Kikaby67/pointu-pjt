@@ -9,6 +9,7 @@ public class CPHInline
     private const string CONFIG_LORE     = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_lore_textes.json";
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
     private const string CONFIG_LEVEL    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_level.json";
+    private const string ETAT_GLOBAL     = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\etat_global.json";
 
     public bool Execute()
     {
@@ -106,37 +107,68 @@ public class CPHInline
             json = ModifierValeur(json, "queteTicksRestants", "0", false);
             json = ModifierValeur(json, "compagnonActif", "", true);
 
+            string cfgQr = File.ReadAllText(CONFIG_QUETES);
+            string keyR  = QueteKeyDeId(cfgQr, queteEnCours);
+            json = EnsureChamp(json, "quetesFaites", "", true);
+
             if (succes)
             {
                 int xp = int.Parse(data[2]);
                 int ram = int.Parse(data[3]);
                 json = AjouterValeur(json, "experience", xp);
                 json = AjouterValeur(json, "ram", ram);
-                CPH.SendMessage(TexteLore(data[6], "succes", rng) + " " + nomJoueur
-                              + " +" + xp + " XP · +" + ram + " RAM.");
-                json = VerifierMonteeNiveau(json, nomJoueur);   // annonce + bonus si seuil franchi
+
+                // Une secondaire paie en equipement : 1 item du pool de sa zone.
+                string lootMsg = RecompenseItem(ref json, cfgQr, keyR, rng);
+
+                // Artefacts et secondaires ne se refont pas ; les services, si.
+                if (LireValeurString(cfgQr, keyR + "_type") != "service")
+                    json = MarquerFaite(json, queteEnCours);
+
+                CPH.SendMessage(TexteResolution(cfgQr, keyR, "succes", data[6], rng) + " " + nomJoueur
+                              + " +" + xp + " XP · +" + ram + " RAM." + lootMsg);
+                json = VerifierMonteeNiveau(json, nomJoueur);
                 File.WriteAllText(cheminFichier, json);
             }
             else
             {
                 File.WriteAllText(cheminFichier, json);
-                CPH.SendMessage(TexteLore(data[6], "echec", rng) + " " + nomJoueur + " repart bredouille.");
+                CPH.SendMessage(TexteResolution(cfgQr, keyR, "echec", data[6], rng) + " " + nomJoueur + " repart bredouille.");
             }
             return true;
         }
 
-        // Lancer une nouvelle quête — liste chargée dynamiquement depuis config_quetes.json
-        string cfgQ    = File.ReadAllText(CONFIG_QUETES);
-        string[] allIds = new string[99];
-        int nbQ = 0;
+        // Lancer une nouvelle quête — tirage filtré (zone débloquée, quête pas déjà faite,
+        // artefact débloqué) puis pondéré vers la zone la plus avancée du joueur.
+        string cfgQ  = File.ReadAllText(CONFIG_QUETES);
+        string cfgG2 = File.ReadAllText(CONFIG_GLOBAL);
+        json = EnsureChamp(json, "quetesFaites", "", true);
+
+        string zoneCourante = ZoneCourante(json, cfgG2);
+        string[] courante = new string[99]; int nbC = 0;
+        string[] autres   = new string[99]; int nbA = 0;
+
         for (int i = 1; i <= 99; i++)
         {
-            string qid = LireValeurString(cfgQ, QueteKey(i) + "_id");
+            string key = QueteKey(i);
+            string qid = LireValeurString(cfgQ, key + "_id");
             if (qid == "") break;
-            allIds[nbQ++] = qid;
+            if (!QueteEligible(json, cfgQ, cfgG2, key, qid)) continue;
+            if (LireValeurString(cfgQ, key + "_zone") == zoneCourante) courante[nbC++] = qid;
+            else                                                      autres[nbA++]   = qid;
         }
-        if (nbQ == 0) { CPH.SendMessage(nomJoueur + ", aucune quête disponible !"); return true; }
-        string queteId   = allIds[rng.Next(nbQ)];
+
+        if (nbC + nbA == 0)
+        {
+            CPH.SendMessage(nomJoueur + ", tu as fait tout ce que l'Antre avait a te confier pour l'instant. "
+                          + "Monte en niveau pour ouvrir de nouvelles zones.");
+            return true;
+        }
+
+        // La zone courante domine, les precedentes restent jouables (quete_poids_zone_courante)
+        int poidsC = int.Parse(LireValeur(cfgG2, "quete_poids_zone_courante"));
+        bool prendreCourante = nbC > 0 && (nbA == 0 || rng.Next(100) < poidsC);
+        string queteId = prendreCourante ? courante[rng.Next(nbC)] : autres[rng.Next(nbA)];
         string[] questData = GetQueteData(queteId);
         int ticks = int.Parse(questData[1]);
 
@@ -163,6 +195,152 @@ public class CPHInline
         CPH.SendMessage(msgDepart);
         CPH.EnableTimer("QuestCheck");
         return true;
+    }
+
+    // Zone la plus avancee que le niveau du joueur debloque. Le Desert est a part :
+    // il n'entre dans la progression que si la communaute l'a ouvert (reward Caravane).
+    private string ModifierValeurString(string json, string cle, string val)
+    {
+        string marqueur = "\"" + cle + "\": \"";
+        int posDebut    = json.IndexOf(marqueur);
+        if (posDebut == -1) return json;
+        posDebut       += marqueur.Length;
+        int posFin      = json.IndexOf("\"", posDebut);
+        if (posFin == -1) return json;
+        return json.Substring(0, posDebut) + val + json.Substring(posFin);
+    }
+
+    private string ZoneCourante(string json, string cfgG)
+    {
+        int niveau = int.Parse(LireValeur(json, "niveau"));
+        string[] zones = LireValeurString(cfgG, "zone_ordre").Split(',');
+        string speciale = LireValeurString(cfgG, "quete_zone_speciale");
+        string courante = zones.Length > 0 ? zones[0].Trim() : "";
+        foreach (string z0 in zones)
+        {
+            string z = z0.Trim();
+            if (z == speciale) continue;
+            if (niveau >= NiveauZone(cfgG, z)) courante = z;
+        }
+        return courante;
+    }
+
+    private int NiveauZone(string cfgG, string zone)
+    {
+        int v;
+        return int.TryParse(LireValeur(cfgG, "zone_" + SansAccent(zone).ToLowerInvariant() + "_niveau_min"), out v) ? v : 1;
+    }
+
+    // Tirable si : zone ouverte, pas deja reussie (hors services), et pour un artefact
+    // toutes ses conditions remplies (niveau, nb de quetes, 3 slots, artefact precedent).
+    private bool QueteEligible(string json, string cfgQ, string cfgG, string key, string qid)
+    {
+        string zone = LireValeurString(cfgQ, key + "_zone");
+        string type = LireValeurString(cfgQ, key + "_type");
+        int niveau  = int.Parse(LireValeur(json, "niveau"));
+
+        if (niveau < NiveauZone(cfgG, zone)) return false;
+
+        // Le Desert n'existe pour personne tant que la caravane n'est pas passee.
+        if (zone == LireValeurString(cfgG, "quete_zone_speciale"))
+        {
+            try
+            {
+                if (LireValeur(File.ReadAllText(ETAT_GLOBAL), "desertDecouvert") != "true") return false;
+            }
+            catch (Exception) { return false; }
+        }
+
+        if (type != "service" && EstFaite(json, qid)) return false;
+
+        if (type == "artefact")
+        {
+            int nMin; int.TryParse(LireValeur(cfgQ, key + "_niveauMin"), out nMin);
+            if (niveau < nMin) return false;
+
+            int qMin; int.TryParse(LireValeur(cfgQ, key + "_quetesMin"), out qMin);
+            if (int.Parse(LireValeur(json, "quetesTerminees")) < qMin) return false;
+
+            if (LireValeurString(cfgQ, key + "_equipementComplet") == "true")
+            {
+                if (SlotVide(json, "armeEquipee") || SlotVide(json, "armureEquipee") || SlotVide(json, "accessoireEquipe"))
+                    return false;
+            }
+
+            string requis = LireValeurString(cfgQ, key + "_requiert");
+            if (requis != "" && !EstFaite(json, requis)) return false;
+        }
+        return true;
+    }
+
+    private bool SlotVide(string json, string slot)
+    {
+        string v = LireValeur(json, slot);
+        return v == "" || v == "0";
+    }
+
+    private bool EstFaite(string json, string qid)
+    {
+        string faites = LireValeurString(json, "quetesFaites");
+        if (faites == "" || qid == "") return false;
+        foreach (string f in faites.Split(','))
+            if (f.Trim() == qid) return true;
+        return false;
+    }
+
+    private string MarquerFaite(string json, string qid)
+    {
+        if (EstFaite(json, qid)) return json;
+        string faites = LireValeurString(json, "quetesFaites");
+        return ModifierValeurString(json, "quetesFaites", faites == "" ? qid : faites + "," + qid);
+    }
+
+    // Texte de resolution PROPRE a la quete ; a defaut, la replique du PNJ.
+    private string TexteResolution(string cfgQ, string key, string genre, string demandeurCle, Random rng)
+    {
+        string t = LireValeurString(cfgQ, key + "_texte" + (genre == "succes" ? "Victoire" : "Echec"));
+        if (t != "") return t;
+        return TexteLore(demandeurCle, genre, rng);
+    }
+
+    // Recompense en equipement des secondaires : 1 item du pool de la zone.
+    private string RecompenseItem(ref string json, string cfgQ, string key, Random rng)
+    {
+        string pool = LireValeurString(cfgQ, key + "_recompensePool");
+        if (pool == "") return "";                       // le Desert paie en RAM, pas en objet
+
+        string brut = LireValeurString(cfgQ, pool);
+        if (brut == "") return "";
+
+        int maxSac = int.Parse(LireValeur(File.ReadAllText(CONFIG_GLOBAL), "max_sac"));
+        string inv = LireValeurString(json, "inventaire");
+        int nb = inv == "" ? 0 : inv.Split(',').Length;
+        if (nb >= maxSac) return " (sac plein, la recompense est perdue !)";
+
+        string[] items = brut.Split(',');
+        string item = items[rng.Next(items.Length)].Trim();
+        json = ModifierValeurString(json, "inventaire", inv == "" ? item : inv + "," + item);
+        return " \U0001F381 " + item + " !";
+    }
+
+    private string SansAccent(string s)
+    {
+        if (s == null) return "";
+        string d = s.Trim().Normalize(System.Text.NormalizationForm.FormD);
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        foreach (char c in d)
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c)
+                != System.Globalization.UnicodeCategory.NonSpacingMark)
+                sb.Append(c);
+        return sb.ToString().Normalize(System.Text.NormalizationForm.FormC);
+    }
+
+    private string EnsureChamp(string json, string cle, string valeurDefaut, bool estTexte)
+    {
+        if (json.Contains("\"" + cle + "\"")) return json;
+        int    pos = json.LastIndexOf('}');
+        string val = estTexte ? "\"" + valeurDefaut + "\"" : valeurDefaut;
+        return json.Substring(0, pos) + ",\n  \"" + cle + "\": " + val + "\n}";
     }
 
     // Retrouve la clé quete0NN correspondant à un _id (pour lire les champs annexes).
