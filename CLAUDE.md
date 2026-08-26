@@ -902,9 +902,23 @@ Soin hors rencontre uniquement (**bloqué si `enCombat == true`**). Coûte `comb
 Trigger : Command Triggered → !soin
 ```
 
-#### `!acheter` → `Commandes/Acheter/commande_acheter.cs`
-Achète une **Potion** au marchand. Actif tant que `offreEnAttente == "marchand_soin"`. Vérifie
-`marchand_prix_potion` (config_allies) et `max_sac`. **Indépendant** de `!accepter` (soin) → deux choix séparés.
+#### `!acheter [objet]` → `Commandes/Acheter/commande_acheter.cs`
+**Deux contextes, arbitrés par la présence d'un argument** — sans cette règle, un joueur en
+rencontre marchande ne pourrait jamais atteindre la boutique.
+
+| Saisie | Contexte |
+|---|---|
+| `!acheter` (sans argument) | **Marchand ambulant** : Potion, tant que `rencontreType == "marchand_potion"` et que la rencontre n'a pas expiré. Prix dans `offreValeur`. Résout la rencontre et reprend la quête. |
+| `!acheter [objet]` | **Boutique de Faîne** (Désert) : objets légendaires. |
+
+**Boutique de Faîne** — deux monnaies, l'une donne le *droit*, l'autre paie :
+- **1 jeton** (`caravaneAchats`, posé par le reward 🐪 Caravane du Désert) — consommé à l'achat.
+- **La RAM** — `<Item>_prixAchat` : 6 000 pour une armure/accessoire, 9 000 pour une arme de sous-classe.
+- Catalogue = `config_global → boutique_catalogue` (nom du pool) → le CSV correspondant dans
+  `config_quetes` (par défaut `loot_legendaire`, les 20 légendaires). **Aucun nom d'item en dur.**
+- Recherche **insensible à la casse et aux accents**.
+- Bloqué si `enCombat`. Sac plein ou RAM insuffisante → **le jeton n'est pas consommé**.
+- Le catalogue n'est pas affiché en chat (20 lignes) : il est épinglé dans `#boutique` sur Discord.
 ```
 Trigger : Command Triggered → !acheter
 ```

@@ -41,6 +41,7 @@
 
   "fragment_offre_expire_secondes": 600,
 
+  "boutique_catalogue": "loot_legendaire",
   "caravane_achats_par_ouverture": 1,
 
   "zone_ordre": "Arbonet,Plaines,Lacs,Montagne,Désert,Marais",
