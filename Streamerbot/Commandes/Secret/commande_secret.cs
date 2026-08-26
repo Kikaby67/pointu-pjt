@@ -55,7 +55,7 @@ public class CPHInline
         // Marquer comme reçu
         File.AppendAllText(FICHIER_SECRET, nomJoueur + Environment.NewLine);
 
-        CPH.SendMessage("✦ " + nomJoueur + " — Pointu t'a accordé un fragment de sa carapace millénaire. L'Ecaille-de-Pointu rejoint ton sac. ✦");
+        CPH.SendMessage("✦ " + nomJoueur + " — Pointu détache une écaille de sa peau ancienne. L'Ecaille-de-Pointu rejoint ton sac. ✦");
 
         return true;
     }

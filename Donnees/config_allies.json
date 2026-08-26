@@ -6,7 +6,7 @@
   "vieux_sage_frequence_pct": 12,
   "vieux_sage_chance_combat": 60,
   "vieux_sage_chance_disparait": 40,
-  "vieux_sage_ram_victoire": 100,
+  "vieux_sage_ram_victoire": 500,
   "vieux_sage_pv": 100,
   "vieux_sage_ca": 20,
   "vieux_sage_degats_max": 16,
@@ -16,25 +16,25 @@
   "fragment_xp_min": 5,
   "fragment_xp_max": 15,
 
-  "source_ram_min": 3,
-  "source_ram_max": 8,
+  "source_ram_min": 15,
+  "source_ram_max": 40,
 
-  "chene_ram_min": 5,
-  "chene_ram_max": 10,
+  "chene_ram_min": 25,
+  "chene_ram_max": 50,
 
   "marchand_pv_min": 5,
   "marchand_pv_max": 14,
   "marchand_expiration": 120,
-  "marchand_prix_potion": 5,
+  "marchand_prix_potion": 25,
 
-  "sbires_ram_min": 5,
-  "sbires_ram_max": 14,
+  "sbires_ram_min": 25,
+  "sbires_ram_max": 70,
 
   "glitch_pv_min": 3,
   "glitch_pv_max": 8,
 
-  "corruption_ram_min": 3,
-  "corruption_ram_max": 7,
+  "corruption_ram_min": 15,
+  "corruption_ram_max": 35,
 
   "lichen_pv_min": 3,
   "lichen_pv_max": 8

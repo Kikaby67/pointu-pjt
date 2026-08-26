@@ -108,7 +108,7 @@ public class CPHInline
         CPH.SendMessage(nomJoueur + ", parfait ! Tu es maintenant un Aventurier de l'Antre ! " +
             "Ton fragment de Carapace est prêt. Choisis ta voie : " +
             "!choisirclasse (Hexadécimeur / Cryptolame / Hackmancien / Firewaller / Algorythmancien). " +
-            "Tape !infoclass [nom] pour en savoir plus sur chaque classe.");
+            "Tape ![nom de la classe] pour en savoir plus sur chaque classe.");
 
         return true;
     }

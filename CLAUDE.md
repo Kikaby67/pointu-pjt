@@ -39,6 +39,8 @@ Pointu-PJT/
 │   │   ├── Abandon/             # !abandon
 │   │   ├── Accepter/            # !accepter
 │   │   ├── Refuser/             # !refuser
+│   │   ├── OuvrirDesert/        # !ouvrirdesert (broadcaster — filet si le reward n'est pas échangé)
+│   │   ├── NonMerci/            # !nonmerci (refus du fragment → proposition boss)
 │   │   └── Secret/              # !racine (commande secrète)
 │   ├── quetes/
 │   │   ├── quest_system.cs      # !quete (lancer / consulter)
@@ -69,6 +71,7 @@ Pointu-PJT/
 │   └── Reward/
 │       ├── Jet de dé/           # 1d6_PV.cs, 1d4_CA.cs
 │       ├── Bonus +2/            # +2_PV.cs, +2_CA.cs, +2_Attaque.cs
+│       ├── Caravane/            # caravane_desert.cs (ouvre le Désert + jeton d'achat)
 │       └── DonationGoal/        # suggestion_donationgoal.cs (Suggestion de Donation Goal → DonationGoal.txt)
 ├── Donnees/
 │   ├── joueurs/                 # Un .json par joueur (ex: kikabygaming.json) — GIT-IGNORÉ (état de jeu mouvant)
@@ -80,15 +83,22 @@ Pointu-PJT/
 │   ├── config_level.json        # ★ Source unique : seuils XP et bonus de niveau
 │   ├── config_allies.json       # ★ Source unique : paramètres alliés/marchands
 │   ├── secret_recu.txt          # Liste des joueurs ayant reçu l'Ecaille-de-Pointu
+│   ├── refus_fragment.txt       # Viewers ayant fait !nonmerci — GIT-IGNORÉ (pseudos de tiers)
 │   └── etat_global.json         # État partagé du boss communautaire (arène)
 ├── Docs/
 │   ├── STREAMERBOT_ACTIONS_JSON.md  # Injecter une action dans SB en éditant actions.json (sans kika-sync)
-│   ├── GUIDE_AIDE.md
 │   └── PANNEAU_TWITCH.md
 ├── Lore/
 │   ├── LA_LEGENDE_DE_POINTU_V2.md
+│   ├── LORE_ARBONET_APPROFONDI.md   # ★ V3 : familles, bestiaire, quêtes, récompenses
+│   ├── ZONES_ALLIES_ENNEMIS.md      # ★ CARTE DE RÉFÉRENCE : 6 zones, alliés, boss, langue commune
 │   ├── FICHES_CLASSES.md
 │   └── BESTIAIRE.md
+├── .claude/agents/
+│   └── gardien-lore.md              # ★ Agent de cohérence narrative — à lancer avant d'écrire du lore
+├── PLAN_IMPLEMENTATION_V3.md        # ★ V3 : ordre d'exécution en 6 phases — À LIRE EN PREMIER
+├── RESTRUCTURATION_POINTU_V3.md     # ★ V3 : architecture des messages (Twitch court / Discord détaillé)
+├── ECONOMIE_ET_BOUTIQUE_V3.md       # ★ V3 : RAM ×5, items 4 paliers, boutique, échange
 └── DiscordBot/
     ├── bot_discord.py           # Bot Python discord.py (Discloud)
     └── discloud.config
@@ -202,23 +212,29 @@ combat_tier_miniboss_mod (-35) ← modificateur de difficulté (plus dur que for
 mini_boss_loot_pool (loot_rare)← pool de loot garanti à la victoire
 
 — boss communautaire (arène, tour par tour) —
-rencontre_boss                 ← CSV des boss (Reine-Bug,Munin-Daemon,Hector-Pierre Castor,Fenrir-Firewall)
+rencontre_boss                 ← CSV des boss d'arène, 1 par zone (Sanglier-Virus,Faucon-Firewall,Loutre-Rootkit,
+                                 Ours-Hexadecimeur,Vautour-Rootkit,Crocodile-Firewaller,Hector-Pierre Castor)
+caravane_achats_par_ouverture (1) ← jetons d'achat accordés par redemption du reward Caravane
+zone_ordre                     ← ordre canonique des 6 zones (Arbonet,Plaines,Lacs,Montagne,Désert,Marais)
+zone_<nom>_niveau_min          ← niveau d'accès : arbonet 1 · plaines 3 · lacs 5 · montagne 6 · desert 7 · marais 9
 arene_recrutement_secondes (300) ← durée de la phase !arene (5 min)
 arene_tour_timeout_secondes (120) ← délai avant saut de tour AFK (2 min)
 boss_pv_par_participant (40)   ← PV ajoutés au boss par combattant
 boss_degats_base/alea (5/6)    ← dégâts d'un joueur sur le boss (+ (atk+niveau)*nbAttaques)
-boss_recompense_base_xp/ram (50/20) ← récompense à TOUS les participants
-boss_top_bonus_xp/ram (100/50) ← bonus au meilleur dégâteur
+boss_recompense_base_xp/ram (50/100) ← récompense à TOUS les participants
+boss_top_bonus_xp/ram (100/250) ← bonus au meilleur dégâteur
 boss_loot_pool (loot_legendaire) ← loot du meilleur dégâteur
 
-— !combat —
-combat_base_pct (50) · combat_plancher_joueur (20) · combat_plafond_joueur (80) · combat_min/max (20/100)
-combat_pv_ref/tranche/pct (16/5/3) · combat_ca_ref/tranche/pct (12/2/3) · combat_atk_ref/tranche/pct (2/2/3)
-combat_mana_ref/tranche/pct (5/10/2) · combat_cha_ref/tranche/pct (8/4/1) · combat_agi_ref/tranche/pct (8/3/1)
-combat_niveau_ref/tranche/pct (1/2/2) · combat_attaques_pct (6)   ← bonus par attaque au-delà de 1 (sous-classes)
-combat_tier_faible_mod (100) · combat_tier_moyen_mod (0) · combat_tier_fort_mod (-20)
+— !combat : système de PUISSANCE (26/08/2026) —
+combat_poids_pv (1) · _ca (3) · _atk (5) · _niveau (4) · _mana (1, appliqué par tranche de 10) ·
+  _charisme (1) · _agilite (1)              ← poids de chaque stat dans la puissance
+combat_puissance_par_attaque (20)           ← par attaque au-delà de la 1re (sous-classes)
+combat_puissance_compagnon (45)             ← le compagnon est de la PUISSANCE, plus un bonus % plat
+combat_socle (107)                          ← puissance d'un niv 1 nu : point 50 % de la courbe
+combat_base_mille (500) · combat_pente_num/den (43/25)   ← chance‰ = base + (puiss − socle) × num ÷ den
+combat_mille_min/max (100/950)              ← bornes, en millièmes
+combat_tier_<faible|moyen|fort|miniboss>_mille (1000 / 0 / -200 / -350)   ← palier ennemi, en millièmes
 combat_pv_perte_diviseur (4) · combat_pv_perte_echec_facteur (3) · combat_pv_perte_alea (2)
-compagnon_combat_bonus (15)    ← bonus % du compagnon recruté
 
 — !fuir —
 fuite_base_pct (30) · fuite_agilite_pct (3) · fuite_poids_pct (6) · fuite_min/max (10/95) · agilite_defaut (8)
@@ -230,7 +246,7 @@ discuter_base_pct (25) · discuter_charisme_pct (3) · discuter_min/max (10/90)
 creation_pv_de (6) · creation_ca_de (4) · creation_atq_de (4)
 
 — replis —
-ennemi_ca_defaut (12) · ennemi_degats_defaut (6) · ennemi_xp_defaut (15) · ennemi_ram_defaut (3) · soin_max_defaut (4)
+ennemi_ca_defaut (12) · ennemi_degats_defaut (6) · ennemi_xp_defaut (15) · ennemi_ram_defaut (15) · soin_max_defaut (4)
 
 ✅ Clés obsolètes de l'ancien combat tour par tour (combat_defense_bonus_ca, combat_fuite_seuil_normal,
    combat_fuite_seuil_cryptolame, attaque_degats_defaut, attaque_des_defaut) : **supprimées** (audit v2.2.1).
@@ -303,6 +319,7 @@ _tier            ← "faible" | "moyen" | "fort" | "miniboss" | "boss"
 _pv              ← OBSOLÈTE pour les rencontres classiques, mais SERT de PV de base aux boss d'arène
 _degatsMax       ← OBSOLÈTE pour !combat, mais SERT à la riposte du boss d'arène (× nb joueurs)
 _ca              ← OBSOLÈTE (gardé pour compat)
+_zone            ← zone d'appartenance (Arbonet/Plaines/Lacs/Montagne/Désert/Marais ; "" = hors zone, ex. Vieux-Sage)
 ```
 
 ---
@@ -399,7 +416,9 @@ Fichier : `Donnees/joueurs/{nomJoueur.ToLower()}.json`
   "defenseurs": "",         // CSV des pseudos ayant fait !defense ce round (+CA à la riposte)
   "provocateur": "",        // pseudo qui a fait !provocation (encaisse seul la riposte)
   "bribeSafe": "",          // pseudo soudoyé avec succès (épargné par la riposte)
-  "bribeCible": ""          // pseudo dont le !soudoyer a échoué (riposte focalisée sur lui)
+  "bribeCible": "",         // pseudo dont le !soudoyer a échoué (riposte focalisée sur lui)
+
+  "desertDecouvert": false  // le Désert est-il ouvert à tout le chat ? (reward Caravane ou !ouvrirdesert)
 }
 ```
 
@@ -435,19 +454,47 @@ Toutes ces valeurs sont dans `config_classes.json`. Le code ne les duplique pas.
 
 ## Sous-classes (niveau 5) ✅
 
-| Classe | Sous-classe A | Sous-classe B |
-|--------|--------------|--------------|
-| Hexadécimeur | **Bloc-Hex** : +8 PV max | **Surcharge** : 2 attaques 1d8, -2 CA |
-| Cryptolame | **Byte-Fantôme** : 3 attaques 1d6 | **Pointeur-Null** : 1d10, Arc-Binaire |
-| Hackmancien | **Faille-Zéro** : 2d8 | **Compilateur** : buff allié +2 attaque |
-| Firewaller | **Protocole-Sacré** : aura défense | **Serment-Binaire** : Smite +1d8 (2d8 total) |
-| Algorythmancien | **Barde-Binaire** : 1d10 + buff TOUS | **Patch-Mélodique** : soin 1d8+3 |
+> ♻️ **Refonte du 25/08/2026.** Cinq sous-classes sur dix n'avaient **aucun effet** (leurs clés
+> `degatsMax`/`nbDes`/`buffAttaque`/`auraDefense` n'étaient lues par aucun code — vestiges du combat
+> tour par tour), et **Pointeur-Null était un piège** : `nbAttaques: 1` contre 2 pour un Cryptolame de
+> base, soit un downgrade. Toutes ont désormais **un effet solo ET un effet d'arène**, tous deux lus
+> par du code réel. Les 14 clés mortes ont été supprimées.
 
-Toutes les valeurs sont dans `config_classes.json` (voir section Architecture config).
+| Classe | Sous-classe | Effet SOLO | Effet ARÈNE |
+|---|---|---|---|
+| Hexadécimeur | **Bloc-Hex** | +8 PV max | `!egidebinaire` +2 tours |
+| Hexadécimeur | **Surcharge** | 2 attaques, −2 CA | (via nbAttaques) |
+| Cryptolame | **Byte-Fantôme** | 3 attaques | (via nbAttaques) |
+| Cryptolame | **Pointeur-Null** | Arc-Binaire, **2 attaques**, +15% à `!fuir` | `!zeroday` facteur crit 2→4 |
+| Hackmancien | **Faille-Zéro** | +8% à `!combat` | `!bouledefeu` +15 dégâts |
+| Hackmancien | **Compilateur** | +15% à `!discuter` | `!surcharge` +2 tours |
+| Firewaller | **Protocole-Sacré** | +2 CA | `!restoreup` +8 PV |
+| Firewaller | **Serment-Binaire** | +8% à `!combat` | `!anatheme` +2 tours |
+| Algorythmancien | **Barde-Binaire** | +15% à `!discuter` | `!dansesensuelle` +2 tours |
+| Algorythmancien | **Patch-Mélodique** | soin 1d8+3 | `!soin` en arène |
 
-Les **bonus de sélection** (pvMaxBonus, caModif, typeArme) sont appliqués une fois et stockés dans le JSON joueur — changer le config n'affecte pas les joueurs existants.
+**Les clés d'effet** (`config_classes.json`, une par sous-classe) :
+```
+pvMaxBonus · caModif · typeArme        ← appliques UNE FOIS a la selection (graves dans le profil)
+nbAttaques                              ← !combat, !attaquer, !zeroday, duel
+bonusCombatPct                          ← ajoute au score de !combat ET au duel (ScorePuissance)
+bonusDiscuterPct / bonusFuitePct        ← ajoutes a !discuter / !fuir
+soinMax / soinBonus                     ← RollSoin
+<capacite>Bonus                         ← lu par le FICHIER de la capacite (egide/zeroday/bouledefeu/
+                                          surcharge/restoreup/anatheme/danse)
+_libelle                                ← texte affiche au joueur — DOIT decrire ce que le code fait
+_lore                                   ← phrase d'ambiance
+<Classe>_sousClasses                    ← CSV des 2 options (pilote la validation ET l'affichage)
+```
 
-Les **comportements combat** (degatsMax, nbAttaques, soinMax…) sont lus à l'exécution — changer le config affecte immédiatement tous les joueurs actifs.
+> ⚠️ Une capacité qui pose un **compteur** dans `etat_global` (surcharge, danse, anathème, égide)
+> ne peut pas porter de magnitude par joueur : la valeur est relue ailleurs, hors contexte du lanceur.
+> Ces sous-classes allongent donc la **durée**, pas la puissance. Celles dont la capacité calcule sa
+> valeur sur place (bouledefeu, restoreup, zeroday) portent bien une magnitude.
+
+**Bonus de sélection** (pvMaxBonus, caModif, typeArme) : appliqués une fois, chang er le config
+n'affecte pas les joueurs déjà spécialisés. **Tout le reste** est lu à l'exécution — rééquilibrer
+le config affecte immédiatement tous les joueurs.
 
 ---
 
@@ -462,7 +509,7 @@ Les **comportements combat** (degatsMax, nbAttaques, soinMax…) sont lus à l'e
 | 5 | 6 500 | Sous-classe débloquée |
 | 6 | 14 000 | +3 PV max |
 | 7 | 23 000 | +1 CA, +1 PV max |
-| 8 | 34 000 | +100 Ram |
+| 8 | 34 000 | +500 Ram |
 | 9 | 48 000 | +3 PV max |
 | 10 | 64 000 | +2 Charisme |
 
@@ -506,7 +553,7 @@ private string AppliquerBonusNiveau(string json, int niveau)
             json = AjouterValeur(json, "classeArmure", 1);
             json = AjouterValeur(json, "pvMax",        1);
             json = AjouterValeur(json, "pvActuels",    1); break;
-        case 8:  json = AjouterValeur(json, "ram",      100); break;
+        case 8:  json = AjouterValeur(json, "ram",      500); break;
         case 10: json = AjouterValeur(json, "charisme", 2);   break;
     }
     return json;
@@ -539,38 +586,63 @@ private int[] GetRecompensesEnnemi(string nom)   // XP/RAM sur victoire !combat
 > Liste des ennemis de rencontre = clé `rencontre_ennemis` (CSV) dans `config_global.json`.
 > Paliers rencontre : Drone-racine = faible · Martre/Taupe/Parasite/Ombre/Sentinelle = moyen · Sanglier-Crash = fort.
 > Mini-boss (`rencontre_mini_boss`, tier `miniboss`) : Insecte-Bug, Corbeau-Daemon, Castor-Rootkit, Loup-Firewall.
-> Boss d'arène (`rencontre_boss`, tier `boss`) : Reine-Bug, Munin-Daemon, Hector-Pierre Castor, Fenrir-Firewall.
+> Boss d'arène (`rencontre_boss`, tier `boss`) : 1 par zone — voir la table plus bas.
+> Chaque ennemi porte un `_zone` (6 zones) ; le filtrage par zone n'est **pas encore lu par le code**.
 > Vieux-Sage (`fort`) reste réservé à son événement (offre du Vieux Sage).
 
 ### Ennemis de rencontre de quête
 
-| Nom | PV | CA | Dégâts | XP | RAM |
-|-----|----|----|--------|-----|-----|
-| Martre-Trojan | 30 | 12 | 1d6 | 20 | 4 |
-| Sentinelle du Castor | 25 | 14 | 1d6 | 30 | 6 |
-| Ombre de la mémoire | 20 | 11 | 1d8 | 25 | 5 |
-| Drone-racine | 15 | 10 | 1d4 | 15 | 3 |
-| Parasite de données | 18 | 12 | 1d4 | 18 | 4 |
-| Sanglier-Crash | 35 | 9 | 1d8 | 22 | 5 |
-| Taupe-Malware | 22 | 13 | 1d6 | 20 | 4 |
+| Nom | Zone | Tier | XP | RAM |
+|-----|------|------|-----|-----|
+| Drone-racine | Arbonet | faible | 15 | 3 |
+| Parasite de données | Arbonet | moyen | 18 | 4 |
+| Martre-Trojan | Plaines | moyen | 20 | 4 |
+| Taupe-Malware | Plaines | moyen | 20 | 4 |
+| Ombre de la mémoire | Plaines | moyen | 25 | 5 |
+| Écrevisse-Cache ✱ | Lacs | faible | 16 | 3 |
+| Brochet-Injection ✱ | Lacs | moyen | 24 | 5 |
+| Marmotte-Veille ✱ | Montagne | faible | 18 | 4 |
+| Lynx-Proxy ✱ | Montagne | moyen | 28 | 6 |
+| Fennec-Spoof ✱ | Désert | faible | 18 | 4 |
+| Scorpion-Malware | Désert | moyen | 22 | 5 |
+| Serpent-Phishing | Marais | moyen | 24 | 5 |
+| Sentinelle du Castor | Marais | moyen | 30 | 6 |
+| Sanglier-Crash | Marais | fort | 22 | 5 |
+
+> ✱ **Noms provisoires**, inventés pour que les zones Lacs/Montagne/Désert aient des rencontres —
+> à valider ou renommer. Seul `rencontre_ennemis` (config_global) dépend de ces noms.
 
 ### Mini-boss (solo, en quête — tier `miniboss`)
 
-| Nom | XP | RAM |
-|-----|-----|-----|
-| Insecte-Bug | 10 | 2 |
-| Corbeau-Daemon | 25 | 5 |
-| Castor-Rootkit | 40 | 8 |
-| Loup-Firewall | 60 | 12 |
+| Nom | Zone | XP | RAM |
+|-----|------|-----|-----|
+| Insecte-Bug | Arbonet | 10 | 2 |
+| Corbeau-Daemon | Plaines | 25 | 5 |
+| Castor-Rootkit | Lacs | 40 | 8 |
+| Loup-Firewall | Montagne | 60 | 12 |
+| Mirage-Bug | Désert | 50 | 10 |
+| Grenouille-Corrompue ♥ | Marais | 70 | 14 |
+
+> ♥ **Sauvable par la parole.** `Grenouille-Corrompue_discuterSauve: "true"` dans `config_ennemis.json` :
+> un `!discuter` réussi ne la recrute pas, il la **libère de la corruption** — c'est une victoire
+> (XP + RAM + butin de `_discuterLootPool`, ici `loot_epique`, meilleur que le loot de mini-boss tué).
+> `!combat` reste possible : on la tue au lieu de la sauver, avec le butin normal.
+> **Le mécanisme est générique** — poser ces deux clés sur n'importe quel ennemi le rend sauvable,
+> aucun nom n'est en dur dans le code.
 
 ### Boss d'arène (communautaire — tier `boss`)
 
-| Nom | PV base | degatsMax | XP | RAM |
-|-----|---------|-----------|-----|-----|
-| Reine-Bug | 300 | 8 | 80 | 30 |
-| Munin-Daemon | 400 | 10 | 100 | 40 |
-| Hector-Pierre Castor | 600 | 12 | 150 | 60 |
-| Fenrir-Firewall | 500 | 10 | 120 | 50 |
+Un boss par zone (décision 21/08/2026). Reine-Bug, Munin-Daemon et Fenrir-Firewall sont **retirés**.
+
+| Nom | Zone | PV base | degatsMax | XP | RAM |
+|-----|------|---------|-----------|-----|-----|
+| Sanglier-Virus | Arbonet | 250 | 6 | 60 | 25 |
+| Faucon-Firewall | Plaines | 350 | 8 | 85 | 35 |
+| Loutre-Rootkit | Lacs | 420 | 9 | 100 | 40 |
+| Ours-Hexadecimeur | Montagne | 550 | 11 | 130 | 55 |
+| Vautour-Rootkit | Désert | 450 | 10 | 110 | 45 |
+| Crocodile-Firewaller | Marais | 600 | 12 | 150 | 60 |
+| Hector-Pierre Castor | Marais (final) | 700 | 14 | 200 | 80 |
 
 > PV réels du boss = `_pv` + `boss_pv_par_participant` × nb joueurs. Riposte = `_degatsMax` × nb joueurs.
 
@@ -579,9 +651,38 @@ private int[] GetRecompensesEnnemi(string nom)   // XP/RAM sur victoire !combat
 ## Commandes implémentées ✅
 
 ### `!bonjour` → `Commande_bonjour.cs`
-Accueil du viewer. Indique `!rejoindre`.
+Pointu **propose le fragment de sa carapace** — c'est le choix d'entrée dans Arbonet.
+Deux issues annoncées : `!rejoindre` (accepter) ou `!nonmerci` (refuser).
+Écrit aussi la **fenêtre d'offre** dans `Donnees/offre_fragment.txt` (`pseudo|timestamp`, git-ignoré,
+purge auto au-delà de 24 h). C'est elle qui autorise `!nonmerci` — voir ci-dessous.
 ```
 Trigger : Command Triggered → !bonjour
+```
+
+### `!nonmerci` → `Commandes/NonMerci/commande_nonmerci.cs`
+Refus du fragment → le viewer est « expulsé d'Arbonet » (narratif), puis reçoit en **message privé**
+la proposition d'Hector-Pierre : devenir l'un des boss du jeu (cf. `Lore/ZONES_ALLIES_ENNEMIS.md`).
+- **Ne crée aucun profil** et **ne bloque pas** un `!rejoindre` ultérieur — un viewer peut changer d'avis.
+- Déjà inscrit → refus poli, le fragment ne se rend pas.
+- `CPH.TwitchSendWhisper(..., bot: false)` → le MP part du compte **broadcaster**, pas du bot,
+  pour que le viewer puisse répondre à Florian directement.
+- Dans un `try/catch` : le whisper Twitch **échoue souvent en silence**
+  (compte expéditeur sans vérification téléphonique, destinataire qui n'a jamais écrit au bot).
+  La source fiable est donc le journal `Donnees/refus_fragment.txt`
+  (`AAAA-MM-JJ HH:MM | pseudo | whisper:ok|echec`), **git-ignoré** (pseudos de tiers, repo public).
+**Alias partagés avec la commande son `!no`** (`!no` / `!non` / `!noo` / `!nooo`) : l'action porte
+**deux triggers**, le sien et celui de `!no`. Taper `!non` joue donc le son **et** vaut refus — mais
+seulement si l'offre est ouverte.
+
+**Garde-fou de la fenêtre d'offre** (`fragment_offre_expire_secondes`, 600 s) : sans lui, chaque `!no`
+lancé pour rire enverrait un MP depuis le compte broadcaster à un viewer qui n'a rien demandé.
+- Offre ouverte (`!bonjour` il y a moins de 10 min) → refus complet, puis l'offre est **consommée**
+  (un seul MP par `!bonjour`).
+- Offre absente/périmée → `!nonmerci` tapé explicitement répond « tape !bonjour d'abord » ;
+  un alias son (`!no`…) ne dit **rien** et laisse le son seul.
+- Distinction faite via `args["command"]` (le mot réellement tapé).
+```
+Trigger : Command Triggered → !nonmerci  +  !no / !non / !noo / !nooo (trigger de la commande son)
 ```
 
 ### `!rejoindre` → `Commande_rejoindre.cs`
@@ -608,9 +709,17 @@ Trigger : Command Triggered → !choisirclasse
 ```
 
 ### `!sousclasse [nom]` → `commande_sousclasse.cs`
-Disponible si `niveau >= 5` et `sousClasseChoisie = false`.
-Lit les bonus depuis `config_classes.json` : `_pvMaxBonus`, `_caModif`, `_typeArme`.
-Met `sousClasseChoisie = true`.
+**Entièrement pilotée par le config** — plus aucune liste ni description en dur dans le code.
+- Options lues dans `<Classe>_sousClasses` (CSV), descriptions dans `<SousClasse>_libelle`.
+- Palier de déblocage **déduit de `config_level.json`** (le niveau dont le message contient
+  « sous-classe ») — déplacer le palier ne demande aucune modification de code. Repli sur 5.
+- Saisie **insensible aux accents** : `faille-zero` trouve `Faille-Zéro`.
+- À la sélection : affiche l'**AVANT → APRÈS** chiffré (`PV max 25→33`, `CA 14→12`,
+  `Arme Épée→Arc-Binaire`) puis une ligne 📜 de lore. C'était le manque signalé par Florian.
+- **Déjà spécialisé** : rappelle la sous-classe **et son effet actif** au lieu d'un simple
+  « tu as déjà choisi » — seul moyen pour le joueur de revérifier ce que sa voie lui apporte.
+- 🐛 **Corrigé** : le message sans argument renvoyait vers `!choisirSousClasse`, **commande qui
+  n'existe pas** (l'action n'a que le trigger `!sousclasse`).
 ```
 Trigger : Command Triggered → !sousclasse
 ```
@@ -656,6 +765,7 @@ service_05  : 2 ticks (10 min) → 40 XP  · 4 Ram
 entretien_01: 3 ticks (15 min) → 50 XP  · 5 Ram
 entretien_02: 4 ticks (20 min) → 70 XP  · 7 Ram
 entretien_03: 5 ticks (25 min) → 90 XP  · 9 Ram
+artefact_06 : 5 ticks (25 min) → 95 XP  · 10 Ram  (Désert)
 ```
 > 1 tick = 5 minutes réelles
 ```
@@ -705,25 +815,51 @@ Trigger : Timed Action → QuestCheck (30s, repeat)
 > Toutes les valeurs sont dans `config_global.json` (`combat_*`, `fuite_*`, `discuter_*`, `compagnon_*`).
 
 #### `!combat` → `combat/commande_combat.cs`
-Résolution probabiliste en un jet. Chance de réussite :
+
+> ♻️ **Refonte du 26/08/2026 — système de puissance.** L'ancienne formule additionnait 7 « tranches »
+> à division entière puis plafonnait à 80. Avec les 6 paliers d'équipement, elle **saturait dès le
+> palier Commun** : Rare, Épique, Mythique et Légendaire donnaient tous **exactement 80 %**. La division
+> entière avalait en plus tout bonus inférieur à la tranche (d'où l'ancienne règle des bonus pairs).
+
 ```
-score = combat_base_pct
-      + Tranche(pvMax,   "pv")    + Tranche(CAeff,   "ca")   + Tranche(ATQeff, "atk")
-      + Tranche(manaEff, "mana")  + Tranche(chaEff,  "cha")  + Tranche(agilite, "agi")
-      + Tranche(niveau,  "niveau")
-      + (nbAttaques - 1) * combat_attaques_pct        // réintègre les sous-classes (multi-attaque)
-Tranche(v, p) = ((v - combat_<p>_ref) / combat_<p>_tranche) * combat_<p>_pct
-CAeff   = classeArmure + GetBonusItems("caBonus")     ATQeff = bonusAttaque + GetBonusItems("attaqueBonus")
-manaEff = manaMax + GetBonusItems("manaBonus")        chaEff = charisme + GetBonusItems("charismeBonus")
-agilite, niveau = champs du profil
-nbAttaques : lu sur la sous-classe (prioritaire), sinon classe, défaut 1 (config_classes)
-score  = clamp(score, combat_plancher_joueur, combat_plafond_joueur)   // ex. 20..80
-si compagnonActif != "" : score += compagnon_combat_bonus
-final  = clamp(score + tierMod, combat_min, combat_max)                // 20..100
-tierMod (config) : faible = +100 (→100%), moyen = 0, fort = -20, miniboss = -35
+puissance = PV×poids_pv + CA×poids_ca + ATQ×poids_atk + niveau×poids_niveau
+          + (mana÷10)×poids_mana + charisme×poids_charisme + agilité×poids_agilite
+          + (nbAttaques − 1) × combat_puissance_par_attaque
+          + <Classe>_puissanceModif           // Algorythmancien : −45
+          + <SousClasse>_bonusPuissance       // Faille-Zéro, Serment-Binaire : +45
+          + combat_puissance_compagnon        // si compagnonActif != ""
+
+chance‰ = combat_base_mille + (puissance − combat_socle) × pente_num ÷ pente_den
+         + combat_tier_<tier>_mille
+chance‰ = clamp(chance‰, combat_mille_min, combat_mille_max)
+
+réussite si rng.Next(1000) < chance‰
 ```
-Le **palier** vient de `config_ennemis.json` (`<Ennemi>_tier` : `faible`/`moyen`/`fort`/`miniboss`).
-Calibrage de référence (kikabygaming) : moyen 80 % · fort 60 % · faible 100 % · miniboss ~45 %.
+
+**Le tirage se fait sur 1000**, pas sur 100 : sinon un `+1 attaque` (0,9 point) disparaîtrait dans
+l'arrondi au pourcent. C'est ce qui supprime définitivement la contrainte des bonus pairs — tout compte.
+
+Courbe obtenue face à un ennemi **moyen** (Hexadécimeur de référence) :
+
+| Profil | faible | moyen | fort | mini-boss |
+|---|---|---|---|---|
+| niv 1 nu | 95 % | **50,0 %** | 30,0 % | 15,0 % |
+| niv 3 Bois | 95 % | **57,5 %** | 37,5 % | 22,5 % |
+| niv 5 Commun | 95 % | **64,4 %** | 44,4 % | 29,4 % |
+| niv 6 Rare | 95 % | **70,6 %** | 50,6 % | 35,6 % |
+| niv 8 Épique | 95 % | **77,6 %** | 57,6 % | 42,6 % |
+| niv 10 Mythique | 95 % | **84,9 %** | 64,9 % | 49,9 % |
+| niv 10 Légendaire | 95 % | **89,9 %** | 69,9 % | 54,9 % |
+
+Paliers réguliers de 6 à 7 points, **aucune saturation**. Granularité à niv 5 Commun :
++1 attaque = +0,9 pt · +1 CA = +0,5 · +1 charisme = +0,2.
+
+**L'Algorythmancien** porte `puissanceModif: -45`, exactement compensé par les +45 d'un compagnon :
+seul il combat à −8 points des autres classes, accompagné il est à parité. Il recrute à **73 %**
+(88 % en Barde-Binaire) contre 49 % pour un Hexadécimeur. *Il ne se bat pas, il fait combattre.*
+
+**Multi-attaque visible** : le message de `!combat` annonce les frappes (`3 frappes portées`,
+`1 frappe sur 3` en échec) dès que `nbAttaques > 1`. Purement narratif — la résolution reste le jet unique.
 
 **Résolution** (`rng.Next(100) < final`) :
 - **Réussite** → `pvPerdus = ceil((100-final)/combat_pv_perte_diviseur) + rng(0..combat_pv_perte_alea)`,
@@ -739,6 +875,9 @@ Trigger : Command Triggered → !combat
 
 #### `!discuter` → `combat/commande_discuter.cs`
 Réussite = `discuter_base_pct + charismeEff * discuter_charisme_pct` (clamp), `charismeEff = charisme + items`.
+- **Créature sauvable** (`<Ennemi>_discuterSauve == "true"`, testé **avant** la logique de compagnon) :
+  réussite = **victoire** (XP/RAM de l'ennemi, `combatsGagnes++`, montée de niveau, butin de
+  `<Ennemi>_discuterLootPool`, quête reprise) ; échec = rencontre maintenue, on peut réessayer.
 - **Sans compagnon** : réussite → **recrute** l'ennemi (`compagnonActif = ennemiNom`, booste `!combat`), quête reprend.
   Échec → rencontre maintenue (→ `!combat`/`!fuir`).
 - **Avec compagnon** : réussite → passe la rencontre sans combattre. Échec → doit `!combat` (le compagnon booste).
@@ -842,6 +981,32 @@ Commande secrète — **non documentée dans le jeu**.
 Trigger : Command Triggered → !racine
 ```
 
+### `!ouvrirdesert` → `Commandes/OuvrirDesert/commande_ouvrirdesert.cs`
+**Broadcaster uniquement** (silence total pour les autres). Force `desertDecouvert = true` dans
+`etat_global.json` — filet de sécurité : la découverte passe normalement par le reward **Caravane
+du Désert** (1 000 points), mais l'artefact du Désert est dans la **chaîne principale**. Sans
+ouverture, personne ne peut finir l'histoire. Idéal aussi pour tester.
+```
+Trigger : Command Triggered → !ouvrirdesert
+```
+
+### 🐪 Reward **Caravane du Désert** → `Reward/Caravane/caravane_desert.cs`
+Deux effets de portée différente, dans la même redemption :
+- **Découverte — globale et définitive** : pose `desertDecouvert = true`. Les missives du Désert
+  entrent dans le tirage pour tous les joueurs qui ont le niveau. Annoncée en chat **une seule fois**.
+- **Jeton d'achat — personnel** : `caravaneAchats += caravane_achats_par_ouverture` sur le profil de
+  celui qui a payé. **Seul lui** peut acheter chez Faîne ; les autres profitent de la zone, pas du comptoir.
+
+Un jeton plutôt qu'une fenêtre de temps : une redemption trois minutes avant la fin du stream reste
+utilisable, donc aucun remboursement à la main.
+
+**Remboursement automatique** si le viewer n'a pas de profil ou pas de classe :
+`CPH.TwitchRedemptionCancel(rewardId, redemptionId)` rend les points. Ne fonctionne que si le reward
+n'est **pas** en « skip request queue » côté Twitch — sinon la redemption est déjà validée.
+```
+Trigger : Channel Point Reward → à attacher à la main dans SB (kika-sync ne crée pas ce type de trigger)
+```
+
 ### `!classement` → `Commandes/Classement/commande_classement.cs`
 Affiche le top 5 des aventuriers — **broadcaster uniquement** (lu depuis `config_global.json → broadcaster`).
 - Scanne tous les joueurs avec `classeChoisie == true`
@@ -887,8 +1052,9 @@ Duel **amical** entre deux joueurs (aucune perte de PV). Le challenger pose un d
 - Pose `duelDe`/`duelExpire` sur la cible + `duelVers` sur le challenger (`duel_expire_secondes`, 60s)
 
 **Résolution (dans `!accepter`, méthode `ResoudreDuel`)** — réutilise la formule de puissance de `!combat`
-(`ScorePuissance` = `combat_base_pct + Tranche(pv/ca/atk/mana/cha/agi/niveau) + (nbAtq-1)*combat_attaques_pct + items`,
-clampé `combat_plancher_joueur`..`combat_plafond_joueur`). Vainqueur tiré au sort :
+(`ScorePuissance` = la **puissance** de `!combat`, mêmes poids, même `puissanceModif` de classe,
+compagnon inclus — **sans plafond** : l'ancien clamp 20..80 écrasait les écarts entre duellistes).
+Vainqueur tiré au sort :
 ```
 probaChallenger = scoreA * 100 / (scoreA + scoreB)   →   rng.Next(100) < probaChallenger
 ```
@@ -914,11 +1080,12 @@ Trigger : Command Triggered → !duel
 
 | Fichier | Reward Twitch | Coût | Logique |
 |---------|--------------|------|---------|
-| `1d6_PV.cs` | 🎲 Jet de dé — PV | 2 000 | pvMax = pvBase (config) + 1d6 |
-| `1d4_CA.cs` | 🎲 Jet de dé — CA | 2 000 | CA = caBase (config) + 1d4 |
+| `1d6_PV.cs` | 🎲 Jet de dé — PV | 300 | pvMax = pvBase (config) + 1d6 |
+| `1d4_CA.cs` | 🎲 Jet de dé — CA | 300 | CA = caBase (config) + 1d4 |
 | `+2_PV.cs` | ⭐ Boost +2 — PV | 20 000 | pvMax += 2 (stack permanent) |
 | `+2_CA.cs` | ⭐ Boost +2 — CA | 20 000 | CA += 2 |
 | `+2_Attaque.cs` | ⭐ Boost +2 — Attaque | 20 000 | bonusAttaque += 2 |
+| `caravane_desert.cs` | 🐪 Caravane du Désert | 1 000 | découvre le Désert (global) + 1 jeton d'achat (perso) |
 | `suggestion_donationgoal.cs` | 💡 Suggestion de Donation Goal | 1 | Append de la saisie viewer dans un fichier texte |
 
 > Jet de dé : repart de la BASE classe depuis config, ne stack pas.
@@ -1240,13 +1407,32 @@ C'est un bot de **planning de streams**, autonome, avec son propre `streams.json
 
 ---
 
+## Garde-fou de cohérence narrative
+
+Avant d'écrire ou de modifier du lore, une quête, une créature, un PNJ ou un message joueur :
+lancer l'agent **`gardien-lore`** (`.claude/agents/gardien-lore.md`). Il relit la bible du monde
+et signale les contradictions (carte des 6 zones, règle de corruption, vocabulaire
+fragment/écaille, casting des alliés, boss retirés) en trois niveaux : 🔴 contradiction,
+🟠 tension, 🔵 angle mort. Lecture seule — il rapporte, il ne corrige pas.
+
+---
+
 ## Lore (résumé)
 
 - **Arbonet** : monde nature + technologie hybride (chênes-serveurs, créatures cyber)
 - **Pointu** : tortue ancienne, gardienne de l'Antre, NPC principal
 - **Hector-Pierre Castor** : antagoniste, détruit les chênes-serveurs
-- **Ram** : monnaie du jeu (mémoire vive d'Arbonet)
-- **Fragment de Carapace** : artefact qui sauvegarde le profil joueur (lore du JSON)
+- **Ram** : monnaie du jeu (mémoire vive d'Arbonet). Échelle **×5 appliquée le 22/08/2026** — profils, ennemis, boss, alliés, niveau 8 et prix de revente. Ne jamais rejouer la migration.
+- **Les 6 zones** (`Lore/ZONES_ALLIES_ENNEMIS.md`) : Arbonet → Plaines → Lacs → Montagne → Désert → Marais.
+  Niveaux d'accès dans `config_global.json` (`zone_*_niveau_min`), `zone_ordre` donne l'ordre canonique.
+
+### ⚠️ Trois objets à ne pas confondre
+
+| Terme | Ce que c'est | Rôle |
+|---|---|---|
+| **Fragment / Morceau de Carapace** | Éclat de la carapace de Pointu, remis à `!rejoindre` | **Outil.** Comprendre la langue commune d'Arbonet · choisir sa classe · sauvegarder sa progression dans l'Antre (= le fichier JSON joueur) · être soigné après une défaite |
+| **Écaille-de-Pointu** | Un morceau de sa **peau**, pas de sa carapace | **Relique.** Meilleur accessoire du jeu, via `!racine`. Aucun pouvoir de langue/classe/sauvegarde. |
+| **Morceau d'écorce** (`Ecorce-R/A/C/I/N/E`) | Débris de chêne-serveur droppés en quête | Les 6 lettres reconstituent `racine` |
 
 ---
 

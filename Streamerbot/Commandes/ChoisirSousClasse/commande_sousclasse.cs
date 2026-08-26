@@ -7,10 +7,11 @@ public class CPHInline
 {
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
     private const string CONFIG_CLASSES  = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_classes.json";
+    private const string CONFIG_LEVEL    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_level.json";
 
     public bool Execute()
     {
-        string nomJoueur = args["user"].ToString();
+        string nomJoueur     = args["user"].ToString();
         string cheminFichier = Path.Combine(DOSSIER_JOUEURS, nomJoueur.ToLower() + ".json");
 
         if (!File.Exists(cheminFichier))
@@ -20,6 +21,7 @@ public class CPHInline
         }
 
         string json = File.ReadAllText(cheminFichier);
+        string cfg  = File.ReadAllText(CONFIG_CLASSES);
 
         if (LireValeur(json, "classeChoisie") != "true")
         {
@@ -27,152 +29,178 @@ public class CPHInline
             return true;
         }
 
+        string classe = LireValeur(json, "classe");
+
+
+        // Déjà spécialisé : on RAPPELLE l'effet actif. Avant, le joueur n'avait
+        // aucun moyen de savoir ce que sa sous-classe lui apportait réellement.
+
         if (LireValeur(json, "sousClasseChoisie") == "true")
         {
-            string sousClasseActuelle = LireValeur(json, "sousClasse");
-            CPH.SendMessage(nomJoueur + ", tu as déjà choisi ta sous-classe : " + sousClasseActuelle + " !");
+            string actuelle = LireValeur(json, "sousClasse");
+            CPH.SendMessage(nomJoueur + " — " + actuelle + " : " + Libelle(cfg, actuelle)
+                          + " (choix définitif)");
             return true;
         }
 
-        int niveau = int.Parse(LireValeur(json, "niveau"));
-        if (niveau < 5)
+
+        // Palier de déblocage lu dans config_level, jamais en dur
+
+        int niveau    = int.Parse(LireValeur(json, "niveau"));
+        int niveauMin = NiveauSousClasse(cfg);
+        if (niveau < niveauMin)
         {
-            CPH.SendMessage(nomJoueur + ", il te faut atteindre le niveau 5 pour choisir une sous-classe ! (Tu es niveau " + niveau + ")");
+            CPH.SendMessage(nomJoueur + ", il te faut le niveau " + niveauMin
+                          + " pour choisir ta voie. (Tu es niveau " + niveau + ")");
             return true;
         }
 
-        string classe = LireValeur(json, "classe");
-        string rawInput = args.ContainsKey("rawInput") ? args["rawInput"].ToString().Trim() : "";
 
-        if (string.IsNullOrEmpty(rawInput))
+        // Les deux options viennent du config : "<Classe>_sousClasses"
+
+        string duo = LireValeurString(cfg, classe + "_sousClasses");
+        if (duo == "")
         {
-            CPH.SendMessage(nomJoueur + ", choisis ta sous-classe : " + GetOptionsSousClasse(classe) + " → Tape !choisirSousClasse [nom]");
+            CPH.SendMessage(nomJoueur + ", aucune voie n'est prévue pour la classe " + classe + ".");
             return true;
         }
+        string[] options = duo.Split(',');
 
-        string sousClasse = NormaliserSousClasse(rawInput);
+        string rawInput = args.ContainsKey("rawInput") && args["rawInput"] != null
+                        ? args["rawInput"].ToString().Trim() : "";
 
-        if (string.IsNullOrEmpty(sousClasse))
+        if (rawInput == "")
         {
-            CPH.SendMessage(nomJoueur + ", sous-classe inconnue. Options pour " + classe + " : " + GetOptionsSousClasse(classe));
+            CPH.SendMessage("🐢 " + nomJoueur + ", Pointu attend que tu nommes ta voie : " + OptionsLisibles(cfg, options)
+                          + " → !sousclasse [nom]");
             return true;
         }
 
-        if (!SousClasseValide(classe, sousClasse))
+
+        // Recherche tolérante : casse et accents ignorés (personne ne tape "Faille-Zéro" avec l'accent)
+
+        string sousClasse = "";
+        foreach (string o in options)
+            if (NormaliserNom(o) == NormaliserNom(rawInput)) { sousClasse = o.Trim(); break; }
+
+        if (sousClasse == "")
         {
-            CPH.SendMessage(nomJoueur + ", cette sous-classe n'est pas disponible pour la classe " + classe + ". Options : " + GetOptionsSousClasse(classe));
+            CPH.SendMessage(nomJoueur + ", voie inconnue pour un " + classe + ". Options : " + OptionsLisibles(cfg, options));
             return true;
         }
 
-        string msgBonus = AppliquerBonusSousClasse(ref json, sousClasse);
 
-        json = ModifierValeur(json, "sousClasse", sousClasse, true);
-        json = ModifierValeur(json, "sousClasseChoisie", "true", false);
+        // Application + relevé AVANT/APRÈS : le joueur doit VOIR ce qui a changé
 
-        File.WriteAllText(cheminFichier, json);
-        CPH.SendMessage(nomJoueur + " choisit la sous-classe " + sousClasse + " ! " + msgBonus);
-        return true;
-    }
+        int    pvAvant   = int.Parse(LireValeur(json, "pvMax"));
+        int    caAvant   = int.Parse(LireValeur(json, "classeArmure"));
+        string armeAvant = LireValeur(json, "typeArme");
 
-    private string AppliquerBonusSousClasse(ref string json, string sousClasse)
-    {
-        string cfg   = File.ReadAllText(CONFIG_CLASSES);
-        int pvBonus  = int.Parse(LireValeur(cfg, sousClasse + "_pvMaxBonus"));
-        int caModif  = int.Parse(LireValeur(cfg, sousClasse + "_caModif"));
-        string arme  = LireValeur(cfg, sousClasse + "_typeArme");
+        int    pvBonus = int.Parse(LireValeur(cfg, sousClasse + "_pvMaxBonus"));
+        int    caModif = int.Parse(LireValeur(cfg, sousClasse + "_caModif"));
+        string arme    = LireValeurString(cfg, sousClasse + "_typeArme");
 
         if (pvBonus != 0)
         {
-            json = AjouterValeur(json, "pvMax", pvBonus);
+            json = AjouterValeur(json, "pvMax",     pvBonus);
             json = AjouterValeur(json, "pvActuels", pvBonus);
         }
-        if (caModif != 0)
-            json = AjouterValeur(json, "classeArmure", caModif);
-        if (arme != "0" && arme != "")
-            json = ModifierValeur(json, "typeArme", arme, true);
+        if (caModif != 0) json = AjouterValeur(json, "classeArmure", caModif);
+        if (arme != "")   json = ModifierValeur(json, "typeArme", arme, true);
 
-        switch (sousClasse)
-        {
-            case "Bloc-Hex":        return "+" + pvBonus + " PV max — tu es un monolithe de métal !";
-            case "Surcharge":       return caModif + " CA, 2 attaques par tour — attaque sans retenue !";
-            case "Byte-Fantôme":    return "3 attaques par tour — frappe comme une ombre !";
-            case "Pointeur-Null":   return "Arme → " + arme + ", 1d10 dégâts — vise juste !";
-            case "Faille-Zéro":     return "2d8 dégâts — tu exploites la faille ultime du système !";
-            case "Compilateur":     return "Buff un allié +2 attaque — assemble la force collective !";
-            case "Protocole-Sacré": return "Aura protectrice pour tes alliés — sois leur rempart !";
-            case "Serment-Binaire": return "Smite +1d8 en combat — jure sur le code !";
-            case "Barde-Binaire":   return "1d10 dégâts et buff TOUS les alliés — la musique du réseau !";
-            case "Patch-Mélodique": return "Soin 1d8+3 — ta fréquence corrige toutes les blessures !";
-            default:                return "";
-        }
+        json = ModifierValeur(json, "sousClasse",        sousClasse, true);
+        json = ModifierValeur(json, "sousClasseChoisie", "true",     false);
+        File.WriteAllText(cheminFichier, json);
+
+        string changements = "";
+        if (pvBonus != 0) changements += " PV max " + pvAvant + "→" + (pvAvant + pvBonus) + " ·";
+        if (caModif != 0) changements += " CA " + caAvant + "→" + (caAvant + caModif) + " ·";
+        if (arme != "" && arme != armeAvant) changements += " Arme " + armeAvant + "→" + arme + " ·";
+        changements = changements.TrimEnd('·', ' ');
+
+        CPH.SendMessage("🐢 " + nomJoueur + " emprunte la voie du " + sousClasse + " ! "
+                      + Libelle(cfg, sousClasse)
+                      + (changements == "" ? "" : " |" + changements));
+
+        string lore = LireValeurString(cfg, sousClasse + "_lore");
+        if (lore != "") CPH.SendMessage("📜 " + lore);
+
+        return true;
     }
 
-    private bool SousClasseValide(string classe, string sousClasse)
+    private string Libelle(string cfg, string sousClasse)
     {
-        switch (classe)
-        {
-            case "Hexadécimeur":    return sousClasse == "Bloc-Hex"         || sousClasse == "Surcharge";
-            case "Cryptolame":      return sousClasse == "Byte-Fantôme"     || sousClasse == "Pointeur-Null";
-            case "Hackmancien":     return sousClasse == "Faille-Zéro"      || sousClasse == "Compilateur";
-            case "Firewaller":      return sousClasse == "Protocole-Sacré"  || sousClasse == "Serment-Binaire";
-            case "Algorythmancien": return sousClasse == "Barde-Binaire"    || sousClasse == "Patch-Mélodique";
-            default:                return false;
-        }
+        string l = LireValeurString(cfg, sousClasse + "_libelle");
+        return l == "" ? "effet non documenté" : l;
     }
 
-    private string GetOptionsSousClasse(string classe)
+    private string OptionsLisibles(string cfg, string[] options)
     {
-        switch (classe)
+        string s = "";
+        foreach (string o in options)
         {
-            case "Hexadécimeur":    return "Bloc-Hex (+8 PV) · Surcharge (2 attaques/-2 CA)";
-            case "Cryptolame":      return "Byte-Fantôme (3 attaques) · Pointeur-Null (1d10/Arc)";
-            case "Hackmancien":     return "Faille-Zéro (1d12) · Compilateur (buff allié)";
-            case "Firewaller":      return "Protocole-Sacré (aura) · Serment-Binaire (Smite +1d8)";
-            case "Algorythmancien": return "Barde-Binaire (1d10/buff tous) · Patch-Mélodique (soin 1d8+3)";
-            default:                return "aucune option disponible";
+            string n = o.Trim();
+            if (s != "") s += " · ";
+            s += n + " (" + Libelle(cfg, n) + ")";
         }
+        return s;
     }
 
-    private string NormaliserSousClasse(string input)
+    // Le palier de sous-classe est le niveau dont le message annonce la voie.
+    // Repli sur 5 si config_level est illisible — on ne bloque jamais le joueur.
+    private int NiveauSousClasse(string cfgClasses)
     {
-        switch (input.ToLower().Trim())
+        try
         {
-            case "bloc-hex":
-            case "blochex":              return "Bloc-Hex";
-            case "surcharge":            return "Surcharge";
-            case "byte-fantôme":
-            case "byte-fantome":         return "Byte-Fantôme";
-            case "pointeur-null":        return "Pointeur-Null";
-            case "faille-zéro":
-            case "faille-zero":          return "Faille-Zéro";
-            case "compilateur":          return "Compilateur";
-            case "protocole-sacré":
-            case "protocole-sacre":      return "Protocole-Sacré";
-            case "serment-binaire":      return "Serment-Binaire";
-            case "barde-binaire":        return "Barde-Binaire";
-            case "patch-mélodique":
-            case "patch-melodique":      return "Patch-Mélodique";
-            default:                     return "";
+            string cfgL = File.ReadAllText(CONFIG_LEVEL);
+            for (int n = 2; n <= 20; n++)
+                if (LireValeurString(cfgL, "niveau_" + n + "_message").ToLower().Contains("sous-classe"))
+                    return n;
         }
+        catch (Exception ex) { CPH.LogWarn("!sousclasse — lecture du palier impossible : " + ex.Message); }
+        return 5;
+    }
+
+    private string NormaliserNom(string s)
+    {
+        if (s == null) return "";
+        string d = s.Trim().Normalize(System.Text.NormalizationForm.FormD);
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        foreach (char c in d)
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c)
+                != System.Globalization.UnicodeCategory.NonSpacingMark)
+                sb.Append(c);
+        return sb.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
     }
 
     private string LireValeur(string json, string cle)
     {
         string marqueur = "\"" + cle + "\": ";
-        int posDebut = json.IndexOf(marqueur);
+        int posDebut    = json.IndexOf(marqueur);
         if (posDebut == -1) return "0";
-        posDebut += marqueur.Length;
-        int posFin = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
+        posDebut       += marqueur.Length;
+        int posFin      = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
         return json.Substring(posDebut, posFin - posDebut).Trim().Trim('"');
+    }
+
+    private string LireValeurString(string json, string cle)
+    {
+        string marqueur = "\"" + cle + "\": \"";
+        int posDebut    = json.IndexOf(marqueur);
+        if (posDebut == -1) return "";
+        posDebut       += marqueur.Length;
+        int posFin      = json.IndexOf("\"", posDebut);
+        if (posFin == -1) return "";
+        return json.Substring(posDebut, posFin - posDebut);
     }
 
     private string ModifierValeur(string json, string cle, string val, bool estTexte)
     {
         string marqueur = "\"" + cle + "\": ";
-        int posDebut = json.IndexOf(marqueur);
+        int posDebut    = json.IndexOf(marqueur);
         if (posDebut == -1) return json;
-        posDebut += marqueur.Length;
-        int posFin = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
+        posDebut       += marqueur.Length;
+        int posFin      = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
         string ancienne = json.Substring(posDebut, posFin - posDebut);
         string nouvelle = estTexte ? "\"" + val + "\"" : val;
         return json.Substring(0, posDebut) + nouvelle + json.Substring(posDebut + ancienne.Length);
@@ -180,13 +208,7 @@ public class CPHInline
 
     private string AjouterValeur(string json, string cle, int montant)
     {
-        string marqueur = "\"" + cle + "\": ";
-        int posDebut = json.IndexOf(marqueur);
-        if (posDebut == -1) return json;
-        posDebut += marqueur.Length;
-        int posFin = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
-        string ancienneStr = json.Substring(posDebut, posFin - posDebut).Trim().Trim('"');
-        int ancienne = int.TryParse(ancienneStr, out int v) ? v : 0;
-        return json.Substring(0, posDebut) + (ancienne + montant).ToString() + json.Substring(posDebut + (posFin - posDebut));
+        int val = int.Parse(LireValeur(json, cle));
+        return ModifierValeur(json, cle, (val + montant).ToString(), false);
     }
 }

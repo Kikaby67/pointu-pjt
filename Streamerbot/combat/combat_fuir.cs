@@ -113,7 +113,8 @@ public class CPHInline
 
         int fuite = int.Parse(LireValeur(cfgG, "fuite_base_pct"))
                   + agilite * int.Parse(LireValeur(cfgG, "fuite_agilite_pct"))
-                  - poids   * int.Parse(LireValeur(cfgG, "fuite_poids_pct"));
+                  - poids   * int.Parse(LireValeur(cfgG, "fuite_poids_pct"))
+                  + BonusSousClasse(File.ReadAllText(CONFIG_CLASSES), LireValeur(json, "sousClasse"), "bonusFuitePct");
         fuite = Clamp(fuite, int.Parse(LireValeur(cfgG, "fuite_min")), int.Parse(LireValeur(cfgG, "fuite_max")));
 
         if (rng.Next(100) < fuite)
@@ -153,6 +154,15 @@ public class CPHInline
                 total += int.Parse(LireValeur(cfgItems, item + "_" + stat));
         }
         return total;
+    }
+
+    // Bonus plat accorde par la sous-classe (config_classes). 0 si la cle n'existe pas :
+    // toutes les sous-classes n'agissent pas sur tous les leviers.
+    private int BonusSousClasse(string cfgCls, string sousClasse, string cle)
+    {
+        if (sousClasse == "" || sousClasse == "0") return 0;
+        int v;
+        return int.TryParse(LireValeur(cfgCls, sousClasse + "_" + cle), out v) ? v : 0;
     }
 
     private int Clamp(int v, int min, int max)

@@ -63,7 +63,7 @@ public class CPHInline
         int    nbEnStock  = 0;
         foreach (string item in items)
         {
-            if (string.Equals(item.Trim(), nomItem, StringComparison.OrdinalIgnoreCase))
+            if (NormaliserNom(item) == NormaliserNom(nomItem))
             {
                 if (itemTrouve == "") itemTrouve = item.Trim();
                 nbEnStock++;
@@ -79,7 +79,7 @@ public class CPHInline
             foreach (string slot in slots)
             {
                 string equipe = LireValeur(json, slot);
-                if (string.Equals(equipe, nomItem, StringComparison.OrdinalIgnoreCase))
+                if (NormaliserNom(equipe) == NormaliserNom(nomItem))
                 {
                     itemTrouve      = equipe;
                     champSlotTrouve = slot;
@@ -190,5 +190,22 @@ public class CPHInline
     {
         int val = int.Parse(LireValeur(json, cle));
         return ModifierValeur(json, cle, (val + montant).ToString(), false);
+    }
+
+    // Compare les noms d'item sans tenir compte de la casse NI des accents :
+    // sur mobile, personne ne tape "Armure-renforcee" avec son accent.
+    // Le nom EXACT du config reste celui qu'on stocke — on ne normalise que la comparaison.
+    private string NormaliserNom(string s)
+    {
+        if (s == null) return "";
+        string decompose = s.Trim().Normalize(System.Text.NormalizationForm.FormD);
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        foreach (char c in decompose)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c)
+                != System.Globalization.UnicodeCategory.NonSpacingMark)
+                sb.Append(c);
+        }
+        return sb.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
     }
 }

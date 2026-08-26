@@ -26,6 +26,11 @@ Donnees/joueurs/*.json
 # Le modèle versionné est Donnees/config_insultes.example.json.
 Donnees/config_insultes.json
 
+# ─── Refus du fragment : pseudos de tiers (repo PUBLIC) ───
+# Journal ecrit par !nonmerci, sert a recontacter les viewers a la main.
+Donnees/refus_fragment.txt
+Donnees/offre_fragment.txt
+
 # ─── Modération : logs de chat nominatifs (données de tiers) ───
 # Le repo est PUBLIC. Les logs vivent HORS du repo (Desktop\Stream\Moderation),
 # cette règle reste un filet de sécurité si un .jsonl atterrit ici par erreur.

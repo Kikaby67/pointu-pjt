@@ -1,0 +1,131 @@
+{
+  "_aide": "Textes narratifs du jeu. Enumeration _01, _02, _03... jusqu'a cle absente (meme principe que quete001->quete099). Ajouter une variante = ajouter une ligne, aucun code a toucher.",
+  "_lecture": "TOUJOURS LireValeurString pour lire ces cles : les textes contiennent des virgules, LireValeur couperait la phrase.",
+  "_repli": "Cle introuvable -> defaut_victoire_XX / defaut_defaite_XX. Fichier absent -> le jeu tourne quand meme.",
+
+  "Drone-racine_victoire_01": "La racine morte retombe en poussière. Dans le silence, tu entends l'écho du dernier message qu'elle transportait.",
+  "Drone-racine_victoire_02": "L'essaim se disperse et lâche la racine, qui n'était plus qu'un gant vide depuis longtemps.",
+  "Drone-racine_victoire_03": "Elle s'effondre sans un bruit. Elle fut un jour une racine du réseau vivant.",
+  "Drone-racine_defaite_01": "Le Drone-racine te bouscule maladroitement et poursuit sa route — il y en aura un autre derrière.",
+  "Drone-racine_defaite_02": "Tu trébuches sur ce qui n'est presque plus rien. L'essaim s'éloigne sans même te regarder.",
+
+  "Parasite de données_victoire_01": "Le Parasite se déchire, et les souvenirs qu'il avait bus retournent aux anneaux du chêne.",
+  "Parasite de données_victoire_02": "Tu rends à quelqu'un, quelque part, un souvenir qu'il ne savait même pas avoir perdu.",
+  "Parasite de données_victoire_03": "Les fragments volés se détachent de sa surface un à un, comme des reflets qui s'éteignent.",
+  "Parasite de données_defaite_01": "Le Parasite s'accroche, boit une gorgée de ce que tu es, et se laisse tomber dans les racines.",
+  "Parasite de données_defaite_02": "Il te lâche repu. Tu ne sauras jamais ce qu'il t'a pris.",
+
+  "Martre-Trojan_victoire_01": "Le paquet inoffensif montre enfin ses dents — trop tard pour elle. Si c'est trop beau pour être vrai, c'est une Martre.",
+  "Martre-Trojan_victoire_02": "Tu ne t'es pas laissé approcher. Elle repart bredouille, vexée d'avoir été lue à jour.",
+  "Martre-Trojan_victoire_03": "Elle avait pris l'apparence d'un petit animal blessé. Tu as regardé deux fois.",
+  "Martre-Trojan_defaite_01": "Tu l'as laissée approcher. Le temps de comprendre, elle avait déjà pris ce qu'elle voulait.",
+  "Martre-Trojan_defaite_02": "Le cadeau abandonné sur la route n'en était pas un. Tu l'apprends trop tard.",
+
+  "Taupe-Malware_victoire_01": "Le sol cesse de pixeliser. Elle remonte à contrecœur, ses galeries effondrées derrière elle.",
+  "Taupe-Malware_victoire_02": "Tu l'attrapes entre deux dalles, là où elle croyait qu'on ne regardait jamais.",
+  "Taupe-Malware_victoire_03": "Les cercles concentriques s'arrêtent net. La prairie tiendra encore un cycle.",
+  "Taupe-Malware_defaite_01": "Elle disparaît sous les dalles. Le pan de prairie derrière toi se fige en écran mort.",
+  "Taupe-Malware_defaite_02": "Tu ne l'as jamais vue venir. On ne la voit jamais venir.",
+
+  "Ombre de la mémoire_victoire_01": "L'Ombre se défait en souvenirs qui ne lui appartenaient pas. Aucun n'était le sien.",
+  "Ombre de la mémoire_victoire_02": "Elle te lâche en comprenant que tu n'es pas celui qu'elle cherchait. Puis elle s'efface.",
+  "Ombre de la mémoire_victoire_03": "Elle ne voulait pas se battre. Elle voulait être quelqu'un. Tu la laisses redevenir personne.",
+  "Ombre de la mémoire_defaite_01": "Elle t'a pris pour un autre, et t'a arraché un souvenir pour s'en faire un.",
+  "Ombre de la mémoire_defaite_02": "Tu recules devant une silhouette faite de tout ce que les Corbeaux ont jeté.",
+
+  "Sentinelle du Castor_victoire_01": "L'armure de bois pétrifié cède. La Sentinelle murmure encore : « Vous ne comprenez pas ce qu'ils vous ont pris. »",
+  "Sentinelle du Castor_victoire_02": "Elle tombe avec la discipline de ceux qui croient défendre une cause juste. C'est ce qui la rend difficile à oublier.",
+  "Sentinelle du Castor_victoire_03": "Tu brises le plastron taillé dans un chêne-serveur abattu. Elle ne demande pas grâce.",
+  "Sentinelle du Castor_defaite_01": "La Sentinelle te repousse sans haine, reprend son poste, et te laisse repartir en boitant.",
+  "Sentinelle du Castor_defaite_02": "« Vous ne comprenez pas », répète-t-elle en te tournant le dos. Le convoi passe.",
+
+  "Sanglier-Crash_victoire_01": "Le Sanglier-Crash se fige une dernière fois — écran bleu définitif. Pour lui aussi, c'est une délivrance.",
+  "Sanglier-Crash_victoire_02": "Tu profites d'un de ses gels pour frapper. La masse d'erreurs s'effondre sans avoir compris.",
+  "Sanglier-Crash_victoire_03": "Il s'arrête enfin. Il ne savait plus faire que charger.",
+  "Sanglier-Crash_defaite_01": "Il charge, se fige, recharge — et te renverse avant que tu aies trouvé la faille.",
+  "Sanglier-Crash_defaite_02": "Trop de muscle, trop d'erreurs. Tu cèdes le passage à quelque chose qui ne peut plus s'arrêter.",
+
+  "Insecte-Bug_victoire_01": "L'Insecte-Bug se rétracte, et les anomalies qu'il semait dans les anneaux cessent de se propager.",
+  "Insecte-Bug_victoire_02": "Tu écrases l'anomalie à la source. Arbonet se souviendra un peu mieux, quelque temps.",
+  "Insecte-Bug_victoire_03": "Minuscule, discret, presque rien — et pourtant c'est par lui que la forêt se trompait.",
+  "Insecte-Bug_defaite_01": "Il te contourne et retourne pondre ses erreurs dans l'écorce. Un anneau de plus se trompera.",
+
+  "Corbeau-Daemon_victoire_01": "L'oiseau s'effondre dans une pluie de plumes noires — un fragment de mémoire volé te revient.",
+  "Corbeau-Daemon_victoire_02": "Tu arraches le dernier souvenir des serres du Corbeau avant qu'il ne s'échappe pour de bon.",
+  "Corbeau-Daemon_victoire_03": "Il lâche prise. Ce qu'il transportait n'était même pas à lui, et il le savait.",
+  "Corbeau-Daemon_defaite_01": "Le Corbeau-Daemon t'échappe dans un tourbillon de plumes — une part de toi part avec lui.",
+
+  "Loup-Firewall_victoire_01": "Le Loup-Firewall cède enfin. Il faisait son devoir, à sa manière : la quarantaine avant tout.",
+  "Loup-Firewall_victoire_02": "Tu franchis la ligne qu'il gardait. Derrière lui, le Marais exhale ce qu'il retenait depuis des cycles.",
+  "Loup-Firewall_victoire_03": "Il tombe en gardien, pas en monstre. C'est la seule chose qu'on pourra dire de lui.",
+  "Loup-Firewall_defaite_01": "Il te traite comme une contamination à contenir, et te repousse hors de sa frontière.",
+
+  "Castor-Rootkit_victoire_01": "Le Castor-Rootkit lâche prise, dents cassées contre l'écorce du chêne-serveur qu'il rongeait.",
+  "Castor-Rootkit_victoire_02": "Il fuit en boitant, laissant derrière lui des copeaux de code corrompu.",
+  "Castor-Rootkit_victoire_03": "Le tronc cesse de craquer. Pour un temps, le forage s'arrête ici.",
+  "Castor-Rootkit_defaite_01": "Il continue de ronger sans même te regarder. Le tronc craque un peu plus fort.",
+
+  "Vieux-Sage_victoire_01": "Le Vieux Sage recule, surpris qu'on ose. Il disparaît dans la brume sans un mot de plus.",
+  "Vieux-Sage_victoire_02": "Tu tiens bon jusqu'au bout. Il s'incline — c'était peut-être ça, l'épreuve.",
+  "Vieux-Sage_defaite_01": "Le Vieux Sage n'a pas eu à lever la main. Tu repars plus léger, sans savoir de quoi.",
+
+  "defaut_victoire_01": "La créature s'effondre et se dissout dans le code d'Arbonet.",
+  "defaut_victoire_02": "Le silence revient sur la route. Tu peux repartir.",
+  "defaut_defaite_01": "La créature prend le dessus et disparaît dans les fourrés.",
+  "defaut_defaite_02": "Tu cèdes du terrain. Elle s'éloigne sans se retourner.",
+
+  "pointu_succes_01": "🐢 Pointu referme sa carapace sur le fragment. « Tu as bien fait de le rapporter avant l'oubli. »",
+  "pointu_succes_02": "🐢 Pointu hoche lentement la tête. Chez lui, c'est un remerciement.",
+  "pointu_succes_03": "🐢 Pointu range ta trouvaille sans un mot, mais il te regarde partir plus longtemps que d'habitude.",
+  "pointu_echec_01": "🐢 Pointu ne dit rien. Il regarde ailleurs, vers les vieux chênes. Tu réessaieras.",
+  "pointu_echec_02": "🐢 Pointu soupire, très lentement. « L'oubli avance plus vite que nous. »",
+
+  "nyx_succes_01": "🦉 Nyx examine ta trouvaille sans un mot. « Il en manque encore. »",
+  "nyx_succes_02": "🦉 Nyx répond à une question que tu n'as pas posée : « Bientôt. Pas encore. »",
+  "nyx_succes_03": "🦉 Nyx note quelque chose que tu ne peux pas lire, et te congédie d'un battement de paupières.",
+  "nyx_echec_01": "🦉 Nyx ne s'étonne pas. Elle avait vu venir ça aussi.",
+  "nyx_echec_02": "🦉 « Pas prêt », dit Nyx. Ce n'est pas un reproche, c'est un constat.",
+
+  "faine_succes_01": "🐿️ Faîne compte, recompte, puis paie. « Rien ne se perd chez moi. Rien ne se donne non plus. »",
+  "faine_succes_02": "🐿️ Faîne range ta livraison dans une cache dont elle seule connaît l'emplacement.",
+  "faine_succes_03": "🐿️ Faîne t'observe repartir. Elle a déjà noté ce que tu vaux.",
+  "faine_echec_01": "🐿️ Faîne ne paie pas ce qu'elle n'a pas reçu. Elle te le fait remarquer.",
+  "faine_echec_02": "🐿️ « Reviens quand tu auras quelque chose », dit Faîne sans lever les yeux.",
+
+  "bogue_succes_01": "🦔 Bogue inspecte le nœud réparé, grogne, et te confie déjà un travail plus lourd.",
+  "bogue_succes_02": "🦔 Bogue ne dit pas merci. Il déroule ses piquants, ce qui revient au même.",
+  "bogue_succes_03": "🦔 Bogue tapote la racine remise en place. « Ça tiendra. » C'est son plus grand compliment.",
+  "bogue_echec_01": "🦔 Bogue soupire et se remet en boule autour du nœud. Il finira seul, comme d'habitude.",
+  "bogue_echec_02": "🦔 Bogue ne commente pas. Il reprend le travail là où tu l'as laissé.",
+
+  "braise_succes_01": "🦊 Braise prend sa part au passage, comme toujours — mais il t'a fait passer.",
+  "braise_succes_02": "🦊 Braise siffle entre ses dents : « Route dégagée. Pour aujourd'hui. »",
+  "braise_succes_03": "🦊 Braise t'indique déjà le prochain détour. Il n'a jamais livré personne aux Corbeaux.",
+  "braise_echec_01": "🦊 Braise hausse les épaules. Dans les Plaines, un convoi perdu, ça arrive.",
+  "braise_echec_02": "🦊 « La route a changé d'avis », dit Braise. Ça lui suffit comme explication.",
+
+  "sillon_succes_01": "🦡 Sillon tasse la terre en silence. La digue tiendra encore un cycle.",
+  "sillon_succes_02": "🦡 Sillon te regarde revenir entier. Il ne dira pas qu'il s'inquiétait.",
+  "sillon_succes_03": "🦡 Sillon te tend une pelle pour la prochaine fois. C'est une marque de confiance.",
+  "sillon_echec_01": "🦡 Sillon reprend la pelle sans commentaire. Il a l'habitude de finir seul.",
+  "sillon_echec_02": "🦡 Sillon regarde l'eau monter. Il ne dit rien sur ses frères.",
+
+  "marchand_potion_accepte_01": "🧪 Le marchand empoche tes RAM et te glisse la fiole sans un mot de trop.",
+  "marchand_potion_accepte_02": "🧪 « Bon voyage », dit-il en refermant sa besace. Il était déjà reparti.",
+  "marchand_potion_refuse_01": "🧪 Le marchand hausse les épaules et remballe. Il en trouvera un autre sur la route.",
+
+  "bonus_ram_accepte_01": "💰 Tu ramasses la bourse. Personne ne viendra la réclamer.",
+  "bonus_ram_accepte_02": "💰 La mémoire vive tinte dans ta main — quelqu'un l'a perdue, il y a longtemps.",
+  "bonus_ram_refuse_01": "💰 Tu laisses la bourse où elle est. Certaines choses traînent pour une raison.",
+
+  "alcove_chene_accepte_01": "🌿 Tu t'adosses au chêne-serveur. Sa sève bat lentement, et tu repars entier.",
+  "alcove_chene_accepte_02": "🌿 L'alcôve te garde le temps qu'il faut. Arbonet soigne encore les siens.",
+  "alcove_chene_refuse_01": "🌿 Tu passes ton chemin. L'alcôve se referme derrière toi, patiente.",
+
+  "vieux_sage_accepte_01": "🧙 Le Vieux Sage sourit. Tu ne sauras jamais si tu as gagné au change.",
+  "vieux_sage_accepte_02": "🧙 Il te donne ce qu'il a promis. Il prend aussi ce qu'il n'avait pas annoncé.",
+  "vieux_sage_refuse_01": "🧙 Tu refuses. Le Vieux Sage te regarde longuement, puis se dissout dans la brume.",
+
+  "marchand_classe_accepte_01": "🎭 Le Marchand de Classe range ton ancienne vie dans un tiroir et t'en tend une autre.",
+  "marchand_classe_refuse_01": "🎭 « Comme tu voudras », dit-il. Sa charrette s'éloigne en grinçant."
+}

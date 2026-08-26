@@ -11,6 +11,7 @@ public class CPHInline
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
     private const string ETAT_GLOBAL     = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\etat_global.json";
+    private const string CONFIG_CLASSES  = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_classes.json";
     private const string CLASSE_REQUISE  = "Firewaller";
 
     public bool Execute()
@@ -40,7 +41,8 @@ public class CPHInline
         int mana  = int.Parse(LireValeur(json, "manaActuels"));
         if (mana < cout) { CPH.SendMessage(nomJoueur + ", pas assez de mana pour Restore Up (" + mana + "/" + cout + ")."); return true; }
 
-        int soin = int.Parse(LireValeur(cfgG, "boss_restoreup_pv"));
+        int soin = int.Parse(LireValeur(cfgG, "boss_restoreup_pv"))
+                 + BonusSousClasse(LireValeur(json, "sousClasse"), "restoreupBonus");
 
         json = ModifierValeur(json, "manaActuels", (mana - cout).ToString(), false);
         File.WriteAllText(cheminFichier, json);
@@ -127,5 +129,13 @@ public class CPHInline
         string ancienne = json.Substring(posDebut, posFin - posDebut);
         string nouvelle = estTexte ? "\"" + val + "\"" : val;
         return json.Substring(0, posDebut) + nouvelle + json.Substring(posDebut + ancienne.Length);
+    }
+
+    // Bonus d'arene accorde par la sous-classe (config_classes). 0 si absent.
+    private int BonusSousClasse(string sousClasse, string cle)
+    {
+        if (sousClasse == "" || sousClasse == "0") return 0;
+        int v;
+        return int.TryParse(LireValeur(File.ReadAllText(CONFIG_CLASSES), sousClasse + "_" + cle), out v) ? v : 0;
     }
 }

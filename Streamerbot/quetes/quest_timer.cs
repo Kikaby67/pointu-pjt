@@ -12,6 +12,7 @@ public class CPHInline
     private const string CONFIG_LEVEL    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_level.json";
     private const string CONFIG_ALLIES   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_allies.json";
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
+    private const string CONFIG_LORE     = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_lore_textes.json";
 
     public bool Execute()
     {
@@ -31,6 +32,17 @@ public class CPHInline
         int intervalleRenc       = int.Parse(LireValeur(cfgG, "quete_rencontre_intervalle_secondes"));
         int miniBossNivMin       = int.Parse(LireValeur(cfgG, "mini_boss_niveau_min"));
         int miniBossChance       = int.Parse(LireValeur(cfgG, "mini_boss_chance"));
+        int rondeAgeMin          = int.Parse(LireValeur(cfgG, "quete_ronde_age_min_secondes"));
+        int seuilGroupement      = int.Parse(LireValeur(cfgG, "quete_seuil_groupement"));
+        if (rondeAgeMin     == 0) rondeAgeMin     = 60;
+        if (seuilGroupement == 0) seuilGroupement = 3;
+
+        // Accumulateurs de la ronde : on n'envoie RIEN pendant la boucle, on décide à la fin.
+        // Sous le seuil -> un message clair par événement. Au-dessus -> on groupe par famille
+        // de commande de réponse (jamais mélanger : !combat/!discuter/!fuir vs !accepter/!refuser).
+        string indivCombat = "", indivOffre = "", indivClasse = "";
+        string listeCombat = "", listeOffre = "", listeClasse = "";
+        int nbCombat = 0, nbOffre = 0, nbClasse = 0;
 
         bool auMoinsUneActive = false;
         foreach (string chemin in fichiers)
@@ -52,7 +64,6 @@ public class CPHInline
                 long expire = long.Parse(LireValeur(json, "rencontreExpire"));
                 if (expire > 0 && maintenant >= expire)
                 {
-                    string typeR    = LireValeur(json, "rencontreType");
                     long pauseDebut = long.Parse(LireValeur(json, "quetePauseDebut"));
                     long totalPause = long.Parse(LireValeur(json, "queteTotalPause"));
                     if (pauseDebut > 0) totalPause += maintenant - pauseDebut;
@@ -64,20 +75,25 @@ public class CPHInline
                     json = ModifierValeur(json, "quetePauseDebut", "0",     false);
                     json = ModifierValeur(json, "queteTotalPause", totalPause.ToString(), false);
                     File.WriteAllText(chemin, json);
-
-                    if (typeR == "combat")
-                        CPH.SendMessage(nomJoueur + ", l'ennemi se lasse de t'attendre et s'éloigne. Ta quête reprend !");
-                    else
-                        CPH.SendMessage(nomJoueur + ", la rencontre prend fin — tu n'as pas répondu à temps. Ta quête reprend !");
+                    // Expiration SILENCIEUSE : annoncer « untel n'a pas répondu » n'apporte rien
+                    // à personne et c'était l'un des plus gros postes de bruit du chat.
                 }
                 auMoinsUneActive = true; continue; // attendre le choix du joueur
             }
 
             // === CAS 2 : check rencontre toutes les N secondes ===
             bool encounterLancee = false;
-            long dernierCheck = long.Parse(LireValeur(json, "dernierCheckRencontre"));
+            long dernierCheck    = long.Parse(LireValeur(json, "dernierCheckRencontre"));
+            long debutQuete      = long.Parse(LireValeur(json, "queteDernierTick"));
 
-            if (maintenant - dernierCheck >= intervalleRenc)
+            // Rondes SYNCHRONISÉES. Avant : un compteur par joueur, donc des rencontres
+            // dispersées et un message chacune. Maintenant tout le monde bascule sur la même
+            // frontière de ronde — la division entière suffit, aucun état global à stocker.
+            // L'âge minimum évite d'attraper un joueur qui vient de taper !quete.
+            bool nouvelleRonde     = (maintenant / intervalleRenc) > (dernierCheck / intervalleRenc);
+            bool queteAssezVieille = (maintenant - debutQuete) >= rondeAgeMin;
+
+            if (nouvelleRonde && queteAssezVieille)
             {
                 json = ModifierValeur(json, "dernierCheckRencontre", maintenant.ToString(), false);
                 int roll = rng.Next(100);
@@ -99,10 +115,13 @@ public class CPHInline
                     json = ModifierValeur(json, "rencontreExpire", (maintenant + expireSecs).ToString(), false);
                     File.WriteAllText(chemin, json);
 
-                    if (estMiniBoss)
-                        CPH.SendMessage(nomJoueur + ", ⚠️ MINI-BOSS ! " + ennemiChoisi + " te barre la route ! Quête en pause — !combat, !discuter ou !fuir. (" + (expireSecs / 60) + " min)");
-                    else
-                        CPH.SendMessage(nomJoueur + ", un " + ennemiChoisi + " surgit sur ta route ! Quête en pause — !combat, !discuter ou !fuir. (" + (expireSecs / 60) + " min)");
+                    // Pas d'article devant le nom : « un Sentinelle du Castor » était fautif.
+                    string ligne = estMiniBoss
+                        ? "⚠️ " + nomJoueur + " — MINI-BOSS ! " + ennemiChoisi + " te barre la route ! !combat · !discuter · !fuir (" + (expireSecs / 60) + " min)"
+                        : "⚔️ " + nomJoueur + " — " + ennemiChoisi + " te barre la route ! !combat · !discuter · !fuir (" + (expireSecs / 60) + " min)";
+                    indivCombat += (indivCombat == "" ? "" : "\n") + ligne;
+                    listeCombat += (listeCombat == "" ? "" : " · ") + nomJoueur + " vs " + ennemiChoisi;
+                    nbCombat++;
                     encounterLancee = true;
                 }
                 else if (roll < tauxEnnemi + tauxAllie)
@@ -122,40 +141,55 @@ public class CPHInline
                         type = poolBase[rng.Next(poolBase.Length)];
 
                     int    offreVal = 0;
-                    string msg      = "";
+                    string msg      = "";   // message individuel (chat calme)
+                    string court    = "";   // étiquette compacte (chat chargé, message groupé)
+                    string delai    = " (" + (expireSecs / 60) + " min)";
 
                     if (type == "marchand_potion")
                     {
                         int prix = int.Parse(LireValeur(cfgAllies, "marchand_prix_potion"));
                         offreVal = prix;
-                        msg = nomJoueur + ", un marchand ambulant te propose une Potion pour " + prix + " RAM ! Quête en pause — !accepter pour acheter | !refuser pour décliner. (" + (expireSecs / 60) + " min)";
+                        msg   = "🧪 " + nomJoueur + " — un marchand ambulant propose une Potion pour " + prix + " RAM. !accepter · !refuser" + delai;
+                        court = nomJoueur + " → 🧪Potion " + prix + " RAM";
                     }
                     else if (type == "vieux_sage")
                     {
                         int xpMin = int.Parse(LireValeur(cfgAllies, "vieux_sage_xp_min"));
                         int xpMax = int.Parse(LireValeur(cfgAllies, "vieux_sage_xp_max"));
                         offreVal  = rng.Next(xpMin, xpMax + 1);
-                        string[] scenariosSage = {
-                            nomJoueur + ", le Vieux Sage d'Arbonet surgit de la brume et te propose un marché pour " + offreVal + " XP ! Quête en pause — !accepter ou !refuser. (" + (expireSecs / 60) + " min)",
-                            nomJoueur + ", un Vieux Sage t'interpelle sur ta route — sagesse contre passage... (" + offreVal + " XP en jeu). Quête en pause — !accepter ou !refuser. (" + (expireSecs / 60) + " min)",
-                            nomJoueur + ", le Vieux Sage apparaît, silencieux. Il tend la main vers toi en offrant " + offreVal + " XP. Quête en pause — !accepter ou !refuser. (" + (expireSecs / 60) + " min)"
-                        };
-                        msg = scenariosSage[rng.Next(scenariosSage.Length)];
+                        msg   = "🧙 " + nomJoueur + " — le Vieux Sage surgit de la brume et propose un marché : " + offreVal + " XP. !accepter · !refuser" + delai;
+                        court = nomJoueur + " → 🧙Sage " + offreVal + " XP";
                     }
                     else if (type == "bonus_ram")
                     {
                         int ramMin = int.Parse(LireValeur(cfgAllies, "source_ram_min"));
                         int ramMax = int.Parse(LireValeur(cfgAllies, "source_ram_max"));
                         offreVal   = rng.Next(ramMin, ramMax + 1);
-                        msg = nomJoueur + ", une bourse de " + offreVal + " RAM brille sur le sol ! Quête en pause — !accepter pour ramasser | !refuser pour passer. (" + (expireSecs / 60) + " min)";
+                        msg   = "💰 " + nomJoueur + " — une bourse de " + offreVal + " RAM brille sur le sol. !accepter · !refuser" + delai;
+                        court = nomJoueur + " → 💰" + offreVal + " RAM";
                     }
                     else if (type == "alcove_chene")
                     {
-                        msg = nomJoueur + ", tu croises une alcôve de chêne-serveur apaisante — elle peut restaurer entièrement ta vitalité ! Quête en pause — !accepter pour te reposer | !refuser pour continuer. (" + (expireSecs / 60) + " min)";
+                        msg   = "🌿 " + nomJoueur + " — une alcôve de chêne-serveur t'offre le repos. !accepter · !refuser" + delai;
+                        court = nomJoueur + " → 🌿alcôve";
                     }
-                    else // marchand_classe
+                    else // marchand_classe — famille à part : il se répond par !choisirclasse
                     {
-                        msg = nomJoueur + ", un Marchand de Classe t'aborde ! Tu peux changer de classe. Tape !choisirclasse [nom] pour changer (Hexadécimeur · Cryptolame · Hackmancien · Firewaller · Algorythmancien) | !refuser pour décliner. (" + (expireSecs / 60) + " min)";
+                        msg   = "🎭 " + nomJoueur + " — un Marchand de Classe t'aborde. !choisirclasse [nom] pour changer · !refuser" + delai;
+                        court = nomJoueur;
+                    }
+
+                    if (type == "marchand_classe")
+                    {
+                        indivClasse += (indivClasse == "" ? "" : "\n") + msg;
+                        listeClasse += (listeClasse == "" ? "" : " · ") + court;
+                        nbClasse++;
+                    }
+                    else
+                    {
+                        indivOffre += (indivOffre == "" ? "" : "\n") + msg;
+                        listeOffre += (listeOffre == "" ? "" : " · ") + court;
+                        nbOffre++;
                     }
 
                     json = ModifierValeur(json, "enRencontre",     "true",                              false);
@@ -165,7 +199,6 @@ public class CPHInline
                     json = ModifierValeur(json, "quetePauseDebut", maintenant.ToString(),               false);
                     json = ModifierValeur(json, "rencontreExpire", (maintenant + expireSecs).ToString(), false);
                     File.WriteAllText(chemin, json);
-                    CPH.SendMessage(msg);
                     encounterLancee = true;
                 }
                 else
@@ -267,12 +300,15 @@ public class CPHInline
                 }
 
                 File.WriteAllText(chemin, json);
-                CPH.SendMessage(nomJoueur + ", ta quête est terminée ! Succès ! Tu gagnes " + xp + " XP et " + ram + " RAM." + lootMsg + " Bien joué aventurier !");
+                // Fin de quête : TOUJOURS son propre message, jamais groupée. C'est le moment
+                // de récompense — il doit rester lisible. Le demandeur du lore prend la parole.
+                CPH.SendMessage(TexteLore(data[6], "succes", rng) + " " + nomJoueur
+                              + " +" + xp + " XP · +" + ram + " RAM." + lootMsg);
             }
             else
             {
                 File.WriteAllText(chemin, json);
-                CPH.SendMessage(nomJoueur + ", ta quête est terminée... Échec. Le destin ne t'a pas souri cette fois. Retente ta chance bientôt !");
+                CPH.SendMessage(TexteLore(data[6], "echec", rng) + " " + nomJoueur + " repart bredouille.");
             }
           }
           catch (Exception ex)
@@ -281,10 +317,91 @@ public class CPHInline
           }
         }
 
+        // === Émission des annonces de rencontre, une fois tous les joueurs traités ===
+        // Sous le seuil : un message clair par événement — la lisibilité passe avant le compteur.
+        // Au-dessus : on groupe par famille, parce qu'un mur de 3+ lignes est pire que la compression.
+        int totalEvts = nbCombat + nbOffre + nbClasse;
+        string delaiTxt = " (" + (expireSecs / 60) + " min)";
+        if (totalEvts > 0 && totalEvts < seuilGroupement)
+        {
+            EnvoyerLignes(indivCombat);
+            EnvoyerLignes(indivOffre);
+            EnvoyerLignes(indivClasse);
+        }
+        else if (totalEvts > 0)
+        {
+            EnvoyerGroupe("⚔️ Arbonet attaque — ",      listeCombat, " | !combat !discuter !fuir" + delaiTxt);
+            EnvoyerGroupe("🤝 Arbonet tend la main — ", listeOffre,  " | !accepter !refuser"      + delaiTxt);
+            EnvoyerGroupe("🎭 Marchand de Classe — ",   listeClasse, " | !choisirclasse [nom] · !refuser" + delaiTxt);
+        }
+
         if (!auMoinsUneActive) CPH.DisableTimer("QuestCheck");
 
         return true;
     }
+
+    private void EnvoyerLignes(string bloc)
+    {
+        if (bloc == "") return;
+        string[] lignes = bloc.Split('\n');
+        for (int i = 0; i < lignes.Length; i++)
+            if (lignes[i] != "") CPH.SendMessage(lignes[i]);
+    }
+
+    // Découpe un message groupé si la liste dépasse la limite Twitch (500 caractères).
+    private void EnvoyerGroupe(string prefixe, string liste, string suffixe)
+    {
+        if (liste == "") return;
+        string[] items = liste.Split(new string[] { " · " }, StringSplitOptions.None);
+        string bloc = "";
+        for (int i = 0; i < items.Length; i++)
+        {
+            string essai = bloc == "" ? items[i] : bloc + " · " + items[i];
+            if (bloc != "" && (prefixe + essai + suffixe).Length > 480)
+            {
+                CPH.SendMessage(prefixe + bloc + suffixe);
+                bloc = items[i];
+            }
+            else bloc = essai;
+        }
+        if (bloc != "") CPH.SendMessage(prefixe + bloc + suffixe);
+    }
+
+    // Tire une variante narrative dans config_lore_textes.json.
+    // Énumère <prefixe>_<genre>_01, _02... jusqu'à clé absente, puis replie sur defaut_<genre>_XX.
+    // LireValeurString est OBLIGATOIRE ici : ces textes contiennent des virgules, LireValeur
+    // s'arrêterait à la première et couperait la phrase en plein milieu.
+    private string TexteLore(string prefixe, string genre, Random rng)
+    {
+        try
+        {
+            if (!File.Exists(CONFIG_LORE)) return "";
+            string cfg    = File.ReadAllText(CONFIG_LORE);
+            string trouve = TirerVariante(cfg, prefixe, genre, rng);
+            if (trouve == "") trouve = TirerVariante(cfg, "defaut", genre, rng);
+            return trouve;
+        }
+        catch (Exception ex)
+        {
+            CPH.LogWarn("Lore : " + ex.Message);
+            return "";
+        }
+    }
+
+    private string TirerVariante(string cfg, string prefixe, string genre, Random rng)
+    {
+        if (prefixe == "") return "";
+        int nb = 0;
+        for (int i = 1; i <= 99; i++)
+        {
+            if (LireValeurString(cfg, prefixe + "_" + genre + "_" + Deux(i)) == "") break;
+            nb++;
+        }
+        if (nb == 0) return "";
+        return LireValeurString(cfg, prefixe + "_" + genre + "_" + Deux(rng.Next(nb) + 1));
+    }
+
+    private string Deux(int i) { return i < 10 ? "0" + i : "" + i; }
 
     private string VerifierMonteeNiveau(string json, string nomJoueur)
     {
@@ -348,7 +465,7 @@ public class CPHInline
         return msg;
     }
 
-    // [0]=nom [1]=ticks [2]=xp [3]=ram [4]=demandeur [5]=type
+    // [0]=nom [1]=ticks [2]=xp [3]=ram [4]=demandeur [5]=type [6]=demandeurCle (textes du lore)
     private string[] GetQueteData(string id)
     {
         string cfg = File.ReadAllText(CONFIG_QUETES);
@@ -364,10 +481,11 @@ public class CPHInline
                 LireValeur(cfg,       key + "_xp"),
                 LireValeur(cfg,       key + "_ram"),
                 LireValeurString(cfg, key + "_demandeur"),
-                LireValeurString(cfg, key + "_type")
+                LireValeurString(cfg, key + "_type"),
+                LireValeurString(cfg, key + "_demandeurCle")
             };
         }
-        return new string[] { "", "1", "0", "0", "Arbonet", "service" };
+        return new string[] { "", "1", "0", "0", "Arbonet", "service", "" };
     }
 
     private string QueteKey(int i)

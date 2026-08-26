@@ -31,4 +31,4 @@ Classes : Hexadécimeur · Cryptolame · Hackmancien · Firewaller · Algorythma
 **🤝 Rencontres spéciales**
 `!accepter` / `!refuser` (Vieux Sage, marchand…)
 
-➡️ Tape `!aide` pour le guide complet !
+➡️ Tape `!arbonet` pour découvrir le monde !

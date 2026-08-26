@@ -7,7 +7,10 @@ public class CPHInline
 {
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
     private const string CONFIG_ITEMS    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_items.json";
+    private const string CONFIG_CLASSES  = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_classes.json";
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
+    private const string CONFIG_ENNEMIS  = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_ennemis.json";
+    private const string CONFIG_QUETES   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_quetes.json";
     private const string CONFIG_LEVEL    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_level.json";
     private const string ETAT_GLOBAL     = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\etat_global.json";
 
@@ -72,11 +75,62 @@ public class CPHInline
 
         int charismeEff = int.Parse(LireValeur(json, "charisme")) + GetBonusItems(json, "charismeBonus");
         int discuter = int.Parse(LireValeur(cfgG, "discuter_base_pct"))
-                     + charismeEff * int.Parse(LireValeur(cfgG, "discuter_charisme_pct"));
+                     + charismeEff * int.Parse(LireValeur(cfgG, "discuter_charisme_pct"))
+                     + BonusSousClasse(File.ReadAllText(CONFIG_CLASSES), LireValeur(json, "sousClasse"), "bonusDiscuterPct");
         discuter = Clamp(discuter, int.Parse(LireValeur(cfgG, "discuter_min")), int.Parse(LireValeur(cfgG, "discuter_max")));
 
         bool reussite    = rng.Next(100) < discuter;
         string compagnon = LireValeurString(json, "compagnonActif");
+
+        // === Créature SAUVABLE par la parole (ex. Grenouille-Corrompue du Marais) ===
+        // Elle n'a pas totalement perdu la langue commune : lui parler la libère de la
+        // corruption. C'est une VICTOIRE (récompenses + butin), pas un recrutement.
+        // Piloté par config_ennemis.json — aucun nom d'ennemi en dur ici.
+        string cfgE = File.ReadAllText(CONFIG_ENNEMIS);
+        if (LireValeurString(cfgE, ennemNom + "_discuterSauve") == "true")
+        {
+            if (!reussite)
+            {
+                File.WriteAllText(cheminFichier, json);   // rencontre maintenue
+                CPH.SendMessage(nomJoueur + " tend la main vers " + ennemNom
+                    + " → ÉCHEC ! Elle n'entend que le bruit de la corruption. Réessaie !discuter, ou !combat / !fuir.");
+                return true;
+            }
+
+            int gainXp  = int.Parse(LireValeur(cfgE, ennemNom + "_xp"));
+            int gainRam = int.Parse(LireValeur(cfgE, ennemNom + "_ram"));
+            json = AjouterValeur(json, "experience",    gainXp);
+            json = AjouterValeur(json, "ram",           gainRam);
+            json = AjouterValeur(json, "combatsGagnes", 1);
+
+            // Butin : pool dédié au sauvetage (meilleur que le loot de mini-boss tué)
+            string lootMsg   = "";
+            string invSauve  = LireValeurString(json, "inventaire");
+            int nbSacSauve   = invSauve == "" ? 0 : invSauve.Split(',').Length;
+            if (nbSacSauve < int.Parse(LireValeur(cfgG, "max_sac")))
+            {
+                string cfgLoot = File.ReadAllText(CONFIG_QUETES);
+                string poolNom = LireValeurString(cfgE, ennemNom + "_discuterLootPool");
+                string lootRaw = LireValeurString(cfgLoot, poolNom);
+                if (lootRaw == "") lootRaw = LireValeurString(cfgLoot, "loot_rare");
+                string[] pool  = lootRaw != "" ? lootRaw.Split(',') : new string[] { "Potion" };
+                string loot    = pool[rng.Next(pool.Length)].Trim();
+                json    = ModifierValeurString(json, "inventaire", invSauve == "" ? loot : invSauve + "," + loot);
+                lootMsg = " 🎁 Elle te confie " + loot + " !";
+            }
+            else
+            {
+                lootMsg = " (sac plein, son présent est perdu !)";
+            }
+
+            json = VerifierMonteeNiveau(json, nomJoueur);
+            json = ReprendreQuete(json, maintenant);
+            File.WriteAllText(cheminFichier, json);
+            CPH.SendMessage("💚 " + nomJoueur + " parle à " + ennemNom
+                + " jusqu'à ce que la corruption lâche prise → SAUVÉE ! Elle se redresse sur ses deux pattes et te remercie. +"
+                + gainXp + " XP · +" + gainRam + " RAM." + lootMsg + " Ta quête reprend.");
+            return true;
+        }
 
         if (compagnon == "")
         {
@@ -114,6 +168,15 @@ public class CPHInline
             }
         }
         return true;
+    }
+
+    // Bonus plat accorde par la sous-classe (config_classes). 0 si la cle n'existe pas :
+    // toutes les sous-classes n'agissent pas sur tous les leviers.
+    private int BonusSousClasse(string cfgCls, string sousClasse, string cle)
+    {
+        if (sousClasse == "" || sousClasse == "0") return 0;
+        int v;
+        return int.TryParse(LireValeur(cfgCls, sousClasse + "_" + cle), out v) ? v : 0;
     }
 
     private string ReprendreQuete(string json, long maintenant)

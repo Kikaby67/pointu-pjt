@@ -64,7 +64,8 @@ public class CPHInline
         int pvMaxBoss = int.Parse(LireValeur(etat, "bossPVMax"));
         int pvActuBoss = int.Parse(LireValeur(etat, "bossPVActuels"));
         double ratioManquant = pvMaxBoss > 0 ? (1.0 - (double)pvActuBoss / pvMaxBoss) : 0;
-        int    facteur   = int.Parse(LireValeur(cfgG, "boss_zeroday_crit_facteur"));
+        int    facteur   = int.Parse(LireValeur(cfgG, "boss_zeroday_crit_facteur"))
+                         + BonusSousClasse(LireValeur(json, "sousClasse"), "zerodayBonus");
         double critMult  = 1.0 + ratioManquant * facteur;
         int    degats    = (int)Math.Round(baseDeg * critMult);
         if (degats < 1) degats = 1;
@@ -211,5 +212,13 @@ public class CPHInline
         int posFin      = json.IndexOf("\"", posDebut);
         if (posFin == -1) return json;
         return json.Substring(0, posDebut) + val + json.Substring(posFin);
+    }
+
+    // Bonus d'arene accorde par la sous-classe (config_classes). 0 si absent.
+    private int BonusSousClasse(string sousClasse, string cle)
+    {
+        if (sousClasse == "" || sousClasse == "0") return 0;
+        int v;
+        return int.TryParse(LireValeur(File.ReadAllText(CONFIG_CLASSES), sousClasse + "_" + cle), out v) ? v : 0;
     }
 }

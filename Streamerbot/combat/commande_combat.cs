@@ -12,6 +12,7 @@ public class CPHInline
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
     private const string CONFIG_CLASSES  = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_classes.json";
     private const string CONFIG_QUETES   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_quetes.json";
+    private const string CONFIG_LORE     = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_lore_textes.json";
 
     public bool Execute()
     {
@@ -56,27 +57,13 @@ public class CPHInline
         if (nbAtq == 0) nbAtq = int.Parse(LireValeur(cfgCls, classe + "_nbAttaques"));
         if (nbAtq == 0) nbAtq = 1;
 
-        int score = int.Parse(LireValeur(cfgG, "combat_base_pct"))
-            + Tranche(cfgG, pvMax,   "pv")
-            + Tranche(cfgG, caEff,   "ca")
-            + Tranche(cfgG, atkEff,  "atk")
-            + Tranche(cfgG, manaEff, "mana")
-            + Tranche(cfgG, chaEff,  "cha")
-            + Tranche(cfgG, agi,     "agi")
-            + Tranche(cfgG, niveau,  "niveau")
-            + (nbAtq - 1) * int.Parse(LireValeur(cfgG, "combat_attaques_pct"));
-
-        score = Clamp(score, int.Parse(LireValeur(cfgG, "combat_plancher_joueur")), int.Parse(LireValeur(cfgG, "combat_plafond_joueur")));
-
         string compagnon = LireValeurString(json, "compagnonActif");
-        if (compagnon != "")
-            score += int.Parse(LireValeur(cfgG, "compagnon_combat_bonus"));
+        int puissance = Puissance(json, cfgG, cfgCls, nbAtq, compagnon != "");
+        int finalMille = ChanceMille(puissance, cfgG, TierMille(cfgG, tier));
+        int finalPct   = finalMille / 10;      // sert encore au calcul de la perte de PV
 
-        int tierMod = TierMod(cfgG, tier);
-        int finalPct = Clamp(score + tierMod, int.Parse(LireValeur(cfgG, "combat_min")), int.Parse(LireValeur(cfgG, "combat_max")));
-
-        // === JET ===
-        bool reussite = rng.Next(100) < finalPct;
+        // === JET === (sur 1000 : chaque point de stat compte)
+        bool reussite = rng.Next(1000) < finalMille;
         int diviseur     = int.Parse(LireValeur(cfgG, "combat_pv_perte_diviseur"));
         int facteurEchec = int.Parse(LireValeur(cfgG, "combat_pv_perte_echec_facteur"));
         int alea         = int.Parse(LireValeur(cfgG, "combat_pv_perte_alea"));
@@ -84,7 +71,8 @@ public class CPHInline
 
         int pvActuels = int.Parse(LireValeur(json, "pvActuels"));
         int cooldown  = int.Parse(LireValeur(cfgG, "quete_cooldown_defaite_secondes"));
-        string compTxt = compagnon != "" ? " (compagnon " + compagnon + ")" : "";
+        string compTxt    = compagnon != "" ? " (compagnon " + compagnon + ")" : "";
+        string frappesTxt = TexteFrappes(nbAtq, reussite, rng);
 
         if (reussite)
         {
@@ -124,20 +112,22 @@ public class CPHInline
                 }
             }
 
-            string baseMsg = nomJoueur + " affronte " + ennemNom + compTxt
-                           + " → VICTOIRE ! -" + perte + " PV (" + nvPV + "/" + pvMax + "), +" + recomp[0] + " XP, +" + recomp[1] + " RAM." + lootMsg;
+            // La résolution est une réponse à une commande tapée : c'est ici que le lore
+            // s'exprime sans coûter un message de plus au chat.
+            string baseMsg = "⚔️ " + TexteLore(ennemNom, "victoire", rng) + " " + nomJoueur + compTxt + frappesTxt
+                           + " -" + perte + " PV (" + nvPV + "/" + pvMax + ") · +" + recomp[0] + " XP · +" + recomp[1] + " RAM." + lootMsg;
 
             if (nvPV <= 0)
             {
                 json = TerminerQuete(json, maintenant, 0);   // effondré mais vainqueur : pas de cooldown
                 File.WriteAllText(cheminFichier, json);
-                CPH.SendMessage(baseMsg + " Mais tu t'effondres, vidé de tes forces ! Va te soigner dans l'Antre (!repos) avant de repartir.");
+                CPH.SendMessage(baseMsg + " Mais il s'effondre, vidé de ses forces — !repos avant de repartir.");
             }
             else
             {
                 json = ReprendreQuete(json, maintenant);
                 File.WriteAllText(cheminFichier, json);
-                CPH.SendMessage(baseMsg + " Ta quête reprend !");
+                CPH.SendMessage(baseMsg + " Sa quête reprend.");
             }
             return true;
         }
@@ -151,9 +141,8 @@ public class CPHInline
             json = ModifierValeur(json, "pvActuels", "0", false);
             json = TerminerQuete(json, maintenant, cooldown);
             File.WriteAllText(cheminFichier, json);
-            CPH.SendMessage(nomJoueur + " affronte " + ennemNom + compTxt
-                + " → DÉFAITE ! Le " + ennemNom + " t'envoie au tapis. Quête échouée, tu récupères dans l'Antre ("
-                + (cooldown / 60) + " min).");
+            CPH.SendMessage("💥 " + TexteLore(ennemNom, "defaite", rng) + " " + nomJoueur + compTxt + frappesTxt
+                + " est au tapis — quête échouée, repos dans l'Antre (" + (cooldown / 60) + " min).");
             return true;
         }
 
@@ -167,17 +156,17 @@ public class CPHInline
         {
             json = TerminerQuete(json, maintenant, cooldown);
             File.WriteAllText(cheminFichier, json);
-            CPH.SendMessage(nomJoueur + " affronte " + ennemNom + compTxt
-                + " → DÉFAITE ! -" + perteReelle + " PV, tu t'effondres. Quête échouée, repos dans l'Antre ("
+            CPH.SendMessage("💥 " + TexteLore(ennemNom, "defaite", rng) + " " + nomJoueur + compTxt + frappesTxt
+                + " -" + perteReelle + " PV, il s'effondre. Quête échouée, repos dans l'Antre ("
                 + (cooldown / 60) + " min).");
         }
         else
         {
             json = ReprendreQuete(json, maintenant);
             File.WriteAllText(cheminFichier, json);
-            CPH.SendMessage(nomJoueur + " affronte " + ennemNom + compTxt
-                + " → ÉCHEC ! Tu encaisses durement -" + perteReelle + " PV (" + pvApres + "/" + pvMax
-                + ") mais tu t'en sors. Ta quête reprend.");
+            CPH.SendMessage("💥 " + TexteLore(ennemNom, "defaite", rng) + " " + nomJoueur + compTxt + frappesTxt
+                + " encaisse -" + perteReelle + " PV (" + pvApres + "/" + pvMax
+                + ") mais s'en sort. Sa quête reprend.");
         }
         return true;
     }
@@ -215,12 +204,12 @@ public class CPHInline
         return json;
     }
 
-    private int TierMod(string cfgG, string tier)
+    // Palier de l'ennemi, en milliemes (config_global : combat_tier_<tier>_mille)
+    private int TierMille(string cfgG, string tier)
     {
-        if (tier == "faible")   return int.Parse(LireValeur(cfgG, "combat_tier_faible_mod"));
-        if (tier == "fort")     return int.Parse(LireValeur(cfgG, "combat_tier_fort_mod"));
-        if (tier == "miniboss") return int.Parse(LireValeur(cfgG, "combat_tier_miniboss_mod"));
-        return int.Parse(LireValeur(cfgG, "combat_tier_moyen_mod"));
+        int v;
+        if (int.TryParse(LireValeur(cfgG, "combat_tier_" + tier + "_mille"), out v)) return v;
+        return 0;
     }
 
     private string GetEnnemiTier(string nom)
@@ -256,14 +245,74 @@ public class CPHInline
     }
 
     // Contribution d'une stat au score : ((valeur - ref) / tranche) * pct (clés combat_<prefixe>_*)
-    private int Tranche(string cfgG, int valeur, string prefixe)
+    // Bonus plat accorde par la sous-classe (config_classes). 0 si la cle n'existe pas :
+    // toutes les sous-classes n'agissent pas sur tous les leviers.
+    private int BonusSousClasse(string cfgCls, string sousClasse, string cle)
     {
-        int refv = int.Parse(LireValeur(cfgG, "combat_" + prefixe + "_ref"));
-        int tr   = int.Parse(LireValeur(cfgG, "combat_" + prefixe + "_tranche"));
-        int pct  = int.Parse(LireValeur(cfgG, "combat_" + prefixe + "_pct"));
-        if (tr == 0) tr = 1;
-        return ((valeur - refv) / tr) * pct;
+        if (sousClasse == "" || sousClasse == "0") return 0;
+        int v;
+        return int.TryParse(LireValeur(cfgCls, sousClasse + "_" + cle), out v) ? v : 0;
     }
+
+    // Rend VISIBLE le multi-attaque des sous-classes. Sans ca, "3 attaques par tour"
+    // n'est qu'un +12% invisible dans la formule : le joueur ne voit jamais ses frappes.
+    // Purement narratif — la resolution reste le jet unique, l'equilibrage est intact.
+    private string TexteFrappes(int nbAtq, bool reussite, Random rng)
+    {
+        if (nbAtq <= 1) return "";                       // classe mono-attaque : pas de bruit
+        if (reussite)   return " (" + nbAtq + " frappes portées)";
+        int portees = rng.Next(0, nbAtq);                // 0..nbAtq-1 : un echec ne porte jamais tout
+        if (portees == 0) return " (aucune frappe ne porte)";
+        return " (" + portees + " frappe" + (portees > 1 ? "s" : "") + " sur " + nbAtq + ")";
+    }
+
+    // === PUISSANCE ===
+    // Une seule echelle lineaire, au lieu des 7 tranches a division entiere qui
+    // saturaient des le 2e palier d'equipement (Rare a Legendaire donnaient le meme
+    // resultat que Commun). Tous les poids sont dans config_global.
+    private int Puissance(string json, string cfgG, string cfgCls, int nbAtq, bool compagnon)
+    {
+        int pv   = int.Parse(LireValeur(json, "pvMax"));
+        int ca   = int.Parse(LireValeur(json, "classeArmure")) + GetBonusItems(json, "caBonus");
+        int atk  = int.Parse(LireValeur(json, "bonusAttaque"))  + GetBonusItems(json, "attaqueBonus");
+        int mana = int.Parse(LireValeur(json, "manaMax"))       + GetBonusItems(json, "manaBonus");
+        int cha  = int.Parse(LireValeur(json, "charisme"))      + GetBonusItems(json, "charismeBonus");
+        int agi  = int.Parse(LireValeur(json, "agilite"));
+        int niv  = int.Parse(LireValeur(json, "niveau"));
+
+        int p = pv   * int.Parse(LireValeur(cfgG, "combat_poids_pv"))
+              + ca   * int.Parse(LireValeur(cfgG, "combat_poids_ca"))
+              + atk  * int.Parse(LireValeur(cfgG, "combat_poids_atk"))
+              + niv  * int.Parse(LireValeur(cfgG, "combat_poids_niveau"))
+              + mana / 10 * int.Parse(LireValeur(cfgG, "combat_poids_mana"))
+              + cha  * int.Parse(LireValeur(cfgG, "combat_poids_charisme"))
+              + agi  * int.Parse(LireValeur(cfgG, "combat_poids_agilite"))
+              + (nbAtq - 1) * int.Parse(LireValeur(cfgG, "combat_puissance_par_attaque"));
+
+        // L'Algorythmancien se bat mal SEUL : son malus est exactement compense
+        // par un compagnon. Il ne frappe pas, il fait frapper.
+        string classe     = LireValeur(json, "classe");
+        string sousClasse = LireValeur(json, "sousClasse");
+        int modifCl; int.TryParse(LireValeur(cfgCls, classe + "_puissanceModif"), out modifCl);
+        p += modifCl;
+        p += BonusSousClasse(cfgCls, sousClasse, "bonusPuissance");
+        if (compagnon) p += int.Parse(LireValeur(cfgG, "combat_puissance_compagnon"));
+        return p;
+    }
+
+    // Puissance -> chance de reussite, en MILLIEMES (le tirage se fait sur 1000,
+    // sinon un bonus de +1 attaque disparaitrait dans l'arrondi au pourcent).
+    private int ChanceMille(int puissance, string cfgG, int tierMille)
+    {
+        int m = int.Parse(LireValeur(cfgG, "combat_base_mille"))
+              + (puissance - int.Parse(LireValeur(cfgG, "combat_socle")))
+                * int.Parse(LireValeur(cfgG, "combat_pente_num"))
+                / int.Parse(LireValeur(cfgG, "combat_pente_den"))
+              + tierMille;
+        return Clamp(m, int.Parse(LireValeur(cfgG, "combat_mille_min")),
+                        int.Parse(LireValeur(cfgG, "combat_mille_max")));
+    }
+
 
     private int Clamp(int v, int min, int max)
     {
@@ -346,6 +395,42 @@ public class CPHInline
         int posFin = json.IndexOfAny(new char[] { ',', '\n', '}' }, posDebut);
         return json.Substring(posDebut, posFin - posDebut).Trim().Trim('"');
     }
+
+    // Tire une variante narrative dans config_lore_textes.json.
+    // Énumère <ennemi>_<genre>_01, _02... jusqu'à clé absente, puis replie sur defaut_<genre>_XX.
+    // LireValeurString OBLIGATOIRE : ces textes contiennent des virgules, LireValeur couperait
+    // la phrase à la première. Fichier absent ou nom d'ennemi inconnu -> chaîne vide, le jeu tourne.
+    private string TexteLore(string prefixe, string genre, Random rng)
+    {
+        try
+        {
+            if (!File.Exists(CONFIG_LORE)) return "";
+            string cfg    = File.ReadAllText(CONFIG_LORE);
+            string trouve = TirerVariante(cfg, prefixe, genre, rng);
+            if (trouve == "") trouve = TirerVariante(cfg, "defaut", genre, rng);
+            return trouve;
+        }
+        catch (Exception ex)
+        {
+            CPH.LogWarn("Lore : " + ex.Message);
+            return "";
+        }
+    }
+
+    private string TirerVariante(string cfg, string prefixe, string genre, Random rng)
+    {
+        if (prefixe == "") return "";
+        int nb = 0;
+        for (int i = 1; i <= 99; i++)
+        {
+            if (LireValeurString(cfg, prefixe + "_" + genre + "_" + Deux(i)) == "") break;
+            nb++;
+        }
+        if (nb == 0) return "";
+        return LireValeurString(cfg, prefixe + "_" + genre + "_" + Deux(rng.Next(nb) + 1));
+    }
+
+    private string Deux(int i) { return i < 10 ? "0" + i : "" + i; }
 
     private string LireValeurString(string json, string cle)
     {

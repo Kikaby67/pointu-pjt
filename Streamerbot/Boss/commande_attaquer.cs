@@ -77,6 +77,7 @@ public class CPHInline
         int degBase = int.Parse(LireValeur(cfgG, "boss_degats_base"));
         int degAlea = int.Parse(LireValeur(cfgG, "boss_degats_alea"));
         int degats  = degBase + (atkEff + niveau) * nbAtq + rng.Next(0, degAlea + 1);
+        string frappesTxt = nbAtq > 1 ? " en " + nbAtq + " frappes" : "";
         if (int.Parse(LireValeur(etat, "buffDesTours")) > 0)
             degats += int.Parse(LireValeur(cfgG, "boss_danse_bonus"));
         if (int.Parse(LireValeur(etat, "bossCaMalusTours")) > 0)
@@ -98,7 +99,7 @@ public class CPHInline
         {
             etat = ModifierValeur(etat, "bossPVActuels", "0", false);
             File.WriteAllText(ETAT_GLOBAL, etat);
-            CPH.SendMessage("💥 " + nomJoueur + " inflige " + degats + " dégâts... et porte le COUP FATAL à " + bossNom + " ! 🏆 Les récompenses arrivent...");
+            CPH.SendMessage("💥 " + nomJoueur + " inflige " + degats + " dégâts" + frappesTxt + "... et porte le COUP FATAL à " + bossNom + " ! 🏆 Les récompenses arrivent...");
             return true;
         }
 
@@ -114,7 +115,7 @@ public class CPHInline
             etat = ModifierValeur(etat, "tourIndex", suivant.ToString(), false);
             etat = ModifierValeur(etat, "tourDeadline", maintenant.ToString(), false);
             File.WriteAllText(ETAT_GLOBAL, etat);
-            CPH.SendMessage("💥 " + nomJoueur + " inflige " + degats + " dégâts ! " + bossNom + " : " + pvBoss + "/" + pvMaxBoss + " PV (" + pct + "%). ⏳ Tous ont agi — " + bossNom + " prépare une attaque dévastatrice !");
+            CPH.SendMessage("💥 " + nomJoueur + " inflige " + degats + " dégâts" + frappesTxt + " ! " + bossNom + " : " + pvBoss + "/" + pvMaxBoss + " PV (" + pct + "%). ⏳ Tous ont agi — " + bossNom + " prépare une attaque dévastatrice !");
             return true;
         }
 
@@ -122,7 +123,7 @@ public class CPHInline
         etat = ModifierValeur(etat, "tourIndex", suivant.ToString(), false);
         etat = ModifierValeur(etat, "tourDeadline", (maintenant + timeout).ToString(), false);
         File.WriteAllText(ETAT_GLOBAL, etat);
-        CPH.SendMessage("💥 " + nomJoueur + " inflige " + degats + " dégâts ! " + bossNom + " : " + pvBoss + "/" + pvMaxBoss + " PV (" + pct + "%). ➡️ Au tour de " + ordreArr[suivant] + " ! (!attaquer, !defense, !soin, !discuter, !fuir ou ta capacité)");
+        CPH.SendMessage("💥 " + nomJoueur + " inflige " + degats + " dégâts" + frappesTxt + " ! " + bossNom + " : " + pvBoss + "/" + pvMaxBoss + " PV (" + pct + "%). ➡️ Au tour de " + ordreArr[suivant] + " ! (!attaquer, !defense, !soin, !discuter, !fuir ou ta capacité)");
         return true;
     }
 

@@ -12,6 +12,7 @@ public class CPHInline
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
     private const string ETAT_GLOBAL     = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\etat_global.json";
+    private const string CONFIG_CLASSES  = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_classes.json";
     private const string CLASSE_REQUISE  = "Hackmancien";
 
     public bool Execute()
@@ -42,7 +43,8 @@ public class CPHInline
         if (mana < cout) { CPH.SendMessage(nomJoueur + ", pas assez de mana pour la Boule de feu (" + mana + "/" + cout + ")."); return true; }
 
         int niveau  = int.Parse(LireValeur(json, "niveau"));
-        int degats  = int.Parse(LireValeur(cfgG, "boss_bouledefeu_base")) + niveau;
+        int degats  = int.Parse(LireValeur(cfgG, "boss_bouledefeu_base")) + niveau
+                    + BonusSousClasse(LireValeur(json, "sousClasse"), "bouledefeuBonus");
         if (int.Parse(LireValeur(etat, "buffDesTours")) > 0)
             degats += int.Parse(LireValeur(cfgG, "boss_danse_bonus"));
         if (int.Parse(LireValeur(etat, "bossCaMalusTours")) > 0)
@@ -177,5 +179,13 @@ public class CPHInline
         int posFin      = json.IndexOf("\"", posDebut);
         if (posFin == -1) return json;
         return json.Substring(0, posDebut) + val + json.Substring(posFin);
+    }
+
+    // Bonus d'arene accorde par la sous-classe (config_classes). 0 si absent.
+    private int BonusSousClasse(string sousClasse, string cle)
+    {
+        if (sousClasse == "" || sousClasse == "0") return 0;
+        int v;
+        return int.TryParse(LireValeur(File.ReadAllText(CONFIG_CLASSES), sousClasse + "_" + cle), out v) ? v : 0;
     }
 }

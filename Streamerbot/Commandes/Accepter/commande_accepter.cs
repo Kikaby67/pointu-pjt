@@ -304,7 +304,8 @@ public class CPHInline
         int marge = scoreGagnant - scorePerdant;
         if (marge < 0)
             return "Contre toute attente, " + gagnant + " renverse le pronostic face à " + perdant + " — la fortune sourit aux audacieux !";
-        if (marge <= 4)
+        if (marge <= 20)   // puissances ~100..350 : 20 points, c'est serre
+
             return "Duel d'une intensité rare, décidé sur un ultime échange : " + gagnant + " l'emporte d'un cheveu sur " + perdant + ".";
 
         // Marge nette → on met en avant la stat dominante du vainqueur
@@ -326,15 +327,18 @@ public class CPHInline
     }
 
     // Puissance de combat d'un joueur (formule !combat, sans palier ennemi)
+    // === PUISSANCE (duel) === identique a !combat : une echelle lineaire, sans plafond.
+    // Le duel compare deja deux puissances en ratio — le clamp 20..80 d'avant ecrasait
+    // les ecarts entre duellistes, il disparait.
     private int ScorePuissance(string json, string cfgG, string cfgCls, string cfgItems)
     {
-        int pvMax   = int.Parse(LireValeur(json, "pvMax"));
-        int caEff   = int.Parse(LireValeur(json, "classeArmure")) + GetBonusItems(json, cfgItems, "caBonus");
-        int atkEff  = int.Parse(LireValeur(json, "bonusAttaque")) + GetBonusItems(json, cfgItems, "attaqueBonus");
-        int manaEff = int.Parse(LireValeur(json, "manaMax"))      + GetBonusItems(json, cfgItems, "manaBonus");
-        int chaEff  = int.Parse(LireValeur(json, "charisme"))     + GetBonusItems(json, cfgItems, "charismeBonus");
-        int agi     = int.Parse(LireValeur(json, "agilite"));
-        int niveau  = int.Parse(LireValeur(json, "niveau"));
+        int pv   = int.Parse(LireValeur(json, "pvMax"));
+        int ca   = int.Parse(LireValeur(json, "classeArmure")) + GetBonusItems(json, cfgItems, "caBonus");
+        int atk  = int.Parse(LireValeur(json, "bonusAttaque")) + GetBonusItems(json, cfgItems, "attaqueBonus");
+        int mana = int.Parse(LireValeur(json, "manaMax"))      + GetBonusItems(json, cfgItems, "manaBonus");
+        int cha  = int.Parse(LireValeur(json, "charisme"))     + GetBonusItems(json, cfgItems, "charismeBonus");
+        int agi  = int.Parse(LireValeur(json, "agilite"));
+        int niv  = int.Parse(LireValeur(json, "niveau"));
 
         string classe     = LireValeur(json, "classe");
         string sousClasse = LireValeur(json, "sousClasse");
@@ -342,27 +346,35 @@ public class CPHInline
         if (nbAtq == 0) nbAtq = int.Parse(LireValeur(cfgCls, classe + "_nbAttaques"));
         if (nbAtq == 0) nbAtq = 1;
 
-        int score = int.Parse(LireValeur(cfgG, "combat_base_pct"))
-            + Tranche(cfgG, pvMax,   "pv")
-            + Tranche(cfgG, caEff,   "ca")
-            + Tranche(cfgG, atkEff,  "atk")
-            + Tranche(cfgG, manaEff, "mana")
-            + Tranche(cfgG, chaEff,  "cha")
-            + Tranche(cfgG, agi,     "agi")
-            + Tranche(cfgG, niveau,  "niveau")
-            + (nbAtq - 1) * int.Parse(LireValeur(cfgG, "combat_attaques_pct"));
+        int p = pv   * int.Parse(LireValeur(cfgG, "combat_poids_pv"))
+              + ca   * int.Parse(LireValeur(cfgG, "combat_poids_ca"))
+              + atk  * int.Parse(LireValeur(cfgG, "combat_poids_atk"))
+              + niv  * int.Parse(LireValeur(cfgG, "combat_poids_niveau"))
+              + mana / 10 * int.Parse(LireValeur(cfgG, "combat_poids_mana"))
+              + cha  * int.Parse(LireValeur(cfgG, "combat_poids_charisme"))
+              + agi  * int.Parse(LireValeur(cfgG, "combat_poids_agilite"))
+              + (nbAtq - 1) * int.Parse(LireValeur(cfgG, "combat_puissance_par_attaque"));
 
-        return Clamp(score, int.Parse(LireValeur(cfgG, "combat_plancher_joueur")), int.Parse(LireValeur(cfgG, "combat_plafond_joueur")));
+        int modifCl; int.TryParse(LireValeur(cfgCls, classe + "_puissanceModif"), out modifCl);
+        p += modifCl;
+        p += BonusSousClasse(cfgCls, sousClasse, "bonusPuissance");
+
+        // Compagnon : il combat aux cotes de son maitre, y compris en duel amical.
+        if (LireValeurString(json, "compagnonActif") != "")
+            p += int.Parse(LireValeur(cfgG, "combat_puissance_compagnon"));
+
+        return p < 1 ? 1 : p;
     }
 
-    private int Tranche(string cfgG, int valeur, string prefixe)
+    // Bonus plat accorde par la sous-classe (config_classes). 0 si la cle n'existe pas :
+    // toutes les sous-classes n'agissent pas sur tous les leviers.
+    private int BonusSousClasse(string cfgCls, string sousClasse, string cle)
     {
-        int refv = int.Parse(LireValeur(cfgG, "combat_" + prefixe + "_ref"));
-        int tr   = int.Parse(LireValeur(cfgG, "combat_" + prefixe + "_tranche"));
-        int pct  = int.Parse(LireValeur(cfgG, "combat_" + prefixe + "_pct"));
-        if (tr == 0) tr = 1;
-        return ((valeur - refv) / tr) * pct;
+        if (sousClasse == "" || sousClasse == "0") return 0;
+        int v;
+        return int.TryParse(LireValeur(cfgCls, sousClasse + "_" + cle), out v) ? v : 0;
     }
+
 
     private int GetBonusItems(string json, string cfgItems, string stat)
     {

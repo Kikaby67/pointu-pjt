@@ -9,7 +9,6 @@
   "Hexadécimeur_nbDes": 1,
   "Hexadécimeur_soinMax": 4,
   "Hexadécimeur_soinBonus": 0,
-
   "Cryptolame_pvBase": 16,
   "Cryptolame_caBase": 13,
   "Cryptolame_manaBase": 5,
@@ -21,7 +20,6 @@
   "Cryptolame_nbAttaques": 2,
   "Cryptolame_soinMax": 4,
   "Cryptolame_soinBonus": 0,
-
   "Hackmancien_pvBase": 14,
   "Hackmancien_caBase": 10,
   "Hackmancien_manaBase": 30,
@@ -32,7 +30,6 @@
   "Hackmancien_nbDes": 1,
   "Hackmancien_soinMax": 6,
   "Hackmancien_soinBonus": 0,
-
   "Firewaller_pvBase": 22,
   "Firewaller_caBase": 15,
   "Firewaller_manaBase": 25,
@@ -43,7 +40,6 @@
   "Firewaller_nbDes": 1,
   "Firewaller_soinMax": 8,
   "Firewaller_soinBonus": 3,
-
   "Algorythmancien_pvBase": 16,
   "Algorythmancien_caBase": 11,
   "Algorythmancien_manaBase": 20,
@@ -55,36 +51,52 @@
   "Algorythmancien_soinMax": 6,
   "Algorythmancien_soinBonus": 0,
   "Algorythmancien_bonusCharisme": 4,
-
   "Bloc-Hex_pvMaxBonus": 8,
-
+  "Bloc-Hex_egideBonus": 2,
+  "Bloc-Hex_libelle": "+8 PV max · !egidebinaire dure 2 tours de plus",
+  "Bloc-Hex_lore": "Tu ne bouges plus. C'est tout l'interet.",
   "Surcharge_caModif": -2,
-  "Surcharge_degatsMax": 8,
-  "Surcharge_nbDes": 1,
   "Surcharge_nbAttaques": 2,
-
-  "Byte-Fantôme_degatsMax": 6,
-  "Byte-Fantôme_nbDes": 1,
+  "Surcharge_libelle": "2 attaques par tour · -2 CA",
+  "Surcharge_lore": "Tu frappes deux fois et tu encaisses ce qui vient.",
   "Byte-Fantôme_nbAttaques": 3,
-
+  "Byte-Fantôme_libelle": "3 attaques par tour",
+  "Byte-Fantôme_lore": "Trois lames, aucune ombre pour les porter.",
   "Pointeur-Null_typeArme": "Arc-Binaire",
-  "Pointeur-Null_degatsMax": 10,
-  "Pointeur-Null_nbDes": 1,
-  "Pointeur-Null_nbAttaques": 1,
-
-  "Faille-Zéro_degatsMax": 8,
-  "Faille-Zéro_nbDes": 2,
-
-  "Compilateur_buffAttaque": 2,
-
-  "Protocole-Sacré_auraDefense": 1,
-
-  "Serment-Binaire_degatsMax": 8,
-  "Serment-Binaire_nbDes": 2,
-
-  "Barde-Binaire_degatsMax": 10,
-  "Barde-Binaire_nbDes": 1,
-
+  "Pointeur-Null_nbAttaques": 2,
+  "Pointeur-Null_bonusFuitePct": 15,
+  "Pointeur-Null_zerodayBonus": 2,
+  "Pointeur-Null_libelle": "Arc-Binaire · 2 attaques · +15% a !fuir · !zeroday crit double",
+  "Pointeur-Null_lore": "Tu vises de loin. Tu pars avant qu'on te touche.",
+  "Faille-Zéro_bouledefeuBonus": 15,
+  "Faille-Zéro_libelle": "+8% a !combat · !bouledefeu +15 degats",
+  "Faille-Zéro_lore": "Tu ne casses pas la porte : tu trouves celle qu'on a oublie de fermer.",
+  "Compilateur_bonusDiscuterPct": 15,
+  "Compilateur_surchargeBonus": 2,
+  "Compilateur_libelle": "+15% a !discuter · !surcharge dure 2 tours de plus",
+  "Compilateur_lore": "Seul tu ne vaux rien. Assemble, et le groupe tient.",
+  "Protocole-Sacré_caModif": 2,
+  "Protocole-Sacré_restoreupBonus": 8,
+  "Protocole-Sacré_libelle": "+2 CA · !restoreup soigne +8 PV",
+  "Protocole-Sacré_lore": "Le rempart ne frappe pas. Il tient, et les autres frappent.",
+  "Serment-Binaire_anathemeBonus": 2,
+  "Serment-Binaire_libelle": "+8% a !combat · !anatheme dure 2 tours de plus",
+  "Serment-Binaire_lore": "Tu as jure sur le code. Ce qui le corrompt te doit reparation.",
+  "Barde-Binaire_bonusDiscuterPct": 15,
+  "Barde-Binaire_danseBonus": 2,
+  "Barde-Binaire_libelle": "+15% a !discuter · !dansesensuelle dure 2 tours de plus",
+  "Barde-Binaire_lore": "Tu ne gagnes pas les combats. Tu fais gagner ceux qui les livrent.",
   "Patch-Mélodique_soinMax": 8,
-  "Patch-Mélodique_soinBonus": 3
+  "Patch-Mélodique_soinBonus": 3,
+  "Patch-Mélodique_libelle": "Soin 1d8+3",
+  "Patch-Mélodique_lore": "Une frequence juste, et la blessure se referme.",
+  "Hexadécimeur_sousClasses": "Bloc-Hex,Surcharge",
+  "Cryptolame_sousClasses": "Byte-Fantôme,Pointeur-Null",
+  "Hackmancien_sousClasses": "Faille-Zéro,Compilateur",
+  "Firewaller_sousClasses": "Protocole-Sacré,Serment-Binaire",
+  "Algorythmancien_sousClasses": "Barde-Binaire,Patch-Mélodique",
+  "_aideSousClasses": "Chaque sous-classe a un effet SOLO (bonusCombatPct/bonusDiscuterPct/bonusFuitePct/pvMaxBonus/caModif/nbAttaques/soin) et un effet ARENE (<capacite>Bonus, lu par le fichier de la capacite). _libelle est affiche au joueur, _lore est la phrase d'ambiance. Cles degatsMax/nbDes/buffAttaque/auraDefense supprimees le 24/08/2026 : aucun code ne les lisait.",
+  "Algorythmancien_puissanceModif": -45,
+  "Faille-Zéro_bonusPuissance": 45,
+  "Serment-Binaire_bonusPuissance": 45
 }
