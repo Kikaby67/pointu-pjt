@@ -398,7 +398,7 @@
   "Epee-de-Ronce_zone": "Arbonet",
   "Epee-de-Ronce_attaqueBonus": 4,
   "Epee-de-Ronce_prixVente": 30,
-  "Epee-de-Ronce_classeTheme": "Hexadecimeur",
+  "Epee-de-Ronce_classeTheme": "Hexadécimeur",
 
   "Dagues-d'Eclats_slot": "arme",
   "Dagues-d'Eclats_rarete": "bois",
@@ -437,14 +437,14 @@
   "Plastron-de-Chene_caBonus": 2,
   "Plastron-de-Chene_poids": 1,
   "Plastron-de-Chene_prixVente": 30,
-  "Plastron-de-Chene_classeTheme": "Hexadecimeur",
+  "Plastron-de-Chene_classeTheme": "Hexadécimeur",
 
   "Anneau-de-Seve_slot": "accessoire",
   "Anneau-de-Seve_rarete": "bois",
   "Anneau-de-Seve_zone": "Arbonet",
   "Anneau-de-Seve_caBonus": 2,
   "Anneau-de-Seve_prixVente": 30,
-  "Anneau-de-Seve_classeTheme": "Hexadecimeur",
+  "Anneau-de-Seve_classeTheme": "Hexadécimeur",
 
   "Veste-de-Feuilles_slot": "armure",
   "Veste-de-Feuilles_rarete": "bois",
@@ -513,7 +513,7 @@
   "Epee-de-Relais_zone": "Plaines",
   "Epee-de-Relais_attaqueBonus": 8,
   "Epee-de-Relais_prixVente": 105,
-  "Epee-de-Relais_classeTheme": "Hexadecimeur",
+  "Epee-de-Relais_classeTheme": "Hexadécimeur",
 
   "Dagues-de-Piste_slot": "arme",
   "Dagues-de-Piste_rarete": "commun",
@@ -552,14 +552,14 @@
   "Plastron-de-Dalle_caBonus": 4,
   "Plastron-de-Dalle_poids": 1,
   "Plastron-de-Dalle_prixVente": 105,
-  "Plastron-de-Dalle_classeTheme": "Hexadecimeur",
+  "Plastron-de-Dalle_classeTheme": "Hexadécimeur",
 
   "Anneau-de-Relais_slot": "accessoire",
   "Anneau-de-Relais_rarete": "commun",
   "Anneau-de-Relais_zone": "Plaines",
   "Anneau-de-Relais_caBonus": 4,
   "Anneau-de-Relais_prixVente": 105,
-  "Anneau-de-Relais_classeTheme": "Hexadecimeur",
+  "Anneau-de-Relais_classeTheme": "Hexadécimeur",
 
   "Veste-de-Course_slot": "armure",
   "Veste-de-Course_rarete": "commun",
@@ -628,7 +628,7 @@
   "Epee-de-Nacre_zone": "Lacs",
   "Epee-de-Nacre_attaqueBonus": 12,
   "Epee-de-Nacre_prixVente": 270,
-  "Epee-de-Nacre_classeTheme": "Hexadecimeur",
+  "Epee-de-Nacre_classeTheme": "Hexadécimeur",
 
   "Dagues-de-Roseau_slot": "arme",
   "Dagues-de-Roseau_rarete": "rare",
@@ -667,14 +667,14 @@
   "Plastron-d'Ecaille_caBonus": 6,
   "Plastron-d'Ecaille_poids": 2,
   "Plastron-d'Ecaille_prixVente": 270,
-  "Plastron-d'Ecaille_classeTheme": "Hexadecimeur",
+  "Plastron-d'Ecaille_classeTheme": "Hexadécimeur",
 
   "Anneau-de-Nacre_slot": "accessoire",
   "Anneau-de-Nacre_rarete": "rare",
   "Anneau-de-Nacre_zone": "Lacs",
   "Anneau-de-Nacre_caBonus": 6,
   "Anneau-de-Nacre_prixVente": 270,
-  "Anneau-de-Nacre_classeTheme": "Hexadecimeur",
+  "Anneau-de-Nacre_classeTheme": "Hexadécimeur",
 
   "Veste-de-Jonc_slot": "armure",
   "Veste-de-Jonc_rarete": "rare",
@@ -743,7 +743,7 @@
   "Epee-de-Givre_zone": "Montagne",
   "Epee-de-Givre_attaqueBonus": 16,
   "Epee-de-Givre_prixVente": 600,
-  "Epee-de-Givre_classeTheme": "Hexadecimeur",
+  "Epee-de-Givre_classeTheme": "Hexadécimeur",
 
   "Dagues-de-Serac_slot": "arme",
   "Dagues-de-Serac_rarete": "epique",
@@ -782,14 +782,14 @@
   "Plastron-de-Glace_caBonus": 8,
   "Plastron-de-Glace_poids": 2,
   "Plastron-de-Glace_prixVente": 600,
-  "Plastron-de-Glace_classeTheme": "Hexadecimeur",
+  "Plastron-de-Glace_classeTheme": "Hexadécimeur",
 
   "Anneau-de-Givre_slot": "accessoire",
   "Anneau-de-Givre_rarete": "epique",
   "Anneau-de-Givre_zone": "Montagne",
   "Anneau-de-Givre_caBonus": 8,
   "Anneau-de-Givre_prixVente": 600,
-  "Anneau-de-Givre_classeTheme": "Hexadecimeur",
+  "Anneau-de-Givre_classeTheme": "Hexadécimeur",
 
   "Veste-de-Lichen_slot": "armure",
   "Veste-de-Lichen_rarete": "epique",
@@ -858,7 +858,7 @@
   "Epee-Petrifiee_zone": "Marais",
   "Epee-Petrifiee_attaqueBonus": 20,
   "Epee-Petrifiee_prixVente": 1200,
-  "Epee-Petrifiee_classeTheme": "Hexadecimeur",
+  "Epee-Petrifiee_classeTheme": "Hexadécimeur",
 
   "Dagues-de-Vase_slot": "arme",
   "Dagues-de-Vase_rarete": "mythique",
@@ -897,14 +897,14 @@
   "Plastron-Petrifie_caBonus": 10,
   "Plastron-Petrifie_poids": 3,
   "Plastron-Petrifie_prixVente": 1200,
-  "Plastron-Petrifie_classeTheme": "Hexadecimeur",
+  "Plastron-Petrifie_classeTheme": "Hexadécimeur",
 
   "Anneau-Petrifie_slot": "accessoire",
   "Anneau-Petrifie_rarete": "mythique",
   "Anneau-Petrifie_zone": "Marais",
   "Anneau-Petrifie_caBonus": 10,
   "Anneau-Petrifie_prixVente": 1200,
-  "Anneau-Petrifie_classeTheme": "Hexadecimeur",
+  "Anneau-Petrifie_classeTheme": "Hexadécimeur",
 
   "Veste-de-Sangsue_slot": "armure",
   "Veste-de-Sangsue_rarete": "mythique",
@@ -975,7 +975,7 @@
   "Plastron-de-Sel_poids": 3,
   "Plastron-de-Sel_prixVente": 1800,
   "Plastron-de-Sel_prixAchat": 6000,
-  "Plastron-de-Sel_classeTheme": "Hexadecimeur",
+  "Plastron-de-Sel_classeTheme": "Hexadécimeur",
 
   "Anneau-de-Sel_slot": "accessoire",
   "Anneau-de-Sel_rarete": "legendaire",
@@ -983,7 +983,7 @@
   "Anneau-de-Sel_caBonus": 12,
   "Anneau-de-Sel_prixVente": 1800,
   "Anneau-de-Sel_prixAchat": 6000,
-  "Anneau-de-Sel_classeTheme": "Hexadecimeur",
+  "Anneau-de-Sel_classeTheme": "Hexadécimeur",
 
   "Veste-de-Mirage_slot": "armure",
   "Veste-de-Mirage_rarete": "legendaire",
@@ -1061,7 +1061,7 @@
   "Rempart-Hexadecimal_attaqueBonus": 24,
   "Rempart-Hexadecimal_prixVente": 1800,
   "Rempart-Hexadecimal_prixAchat": 9000,
-  "Rempart-Hexadecimal_classeTheme": "Hexadecimeur",
+  "Rempart-Hexadecimal_classeTheme": "Hexadécimeur",
   "Rempart-Hexadecimal_sousClasseTheme": "Bloc-Hex",
 
   "Lame-Surtension_slot": "arme",
@@ -1070,7 +1070,7 @@
   "Lame-Surtension_attaqueBonus": 24,
   "Lame-Surtension_prixVente": 1800,
   "Lame-Surtension_prixAchat": 9000,
-  "Lame-Surtension_classeTheme": "Hexadecimeur",
+  "Lame-Surtension_classeTheme": "Hexadécimeur",
   "Lame-Surtension_sousClasseTheme": "Surcharge",
 
   "Triple-Absence_slot": "arme",
@@ -1080,7 +1080,7 @@
   "Triple-Absence_prixVente": 1800,
   "Triple-Absence_prixAchat": 9000,
   "Triple-Absence_classeTheme": "Cryptolame",
-  "Triple-Absence_sousClasseTheme": "Byte-Fantome",
+  "Triple-Absence_sousClasseTheme": "Byte-Fantôme",
 
   "Arc-du-Vide_slot": "arme",
   "Arc-du-Vide_rarete": "legendaire",
@@ -1099,7 +1099,7 @@
   "Baton-Faille-Zero_prixVente": 1800,
   "Baton-Faille-Zero_prixAchat": 9000,
   "Baton-Faille-Zero_classeTheme": "Hackmancien",
-  "Baton-Faille-Zero_sousClasseTheme": "Faille-Zero",
+  "Baton-Faille-Zero_sousClasseTheme": "Faille-Zéro",
 
   "Sceptre-Compilateur_slot": "arme",
   "Sceptre-Compilateur_rarete": "legendaire",
@@ -1119,7 +1119,7 @@
   "Marteau-du-Protocole_prixVente": 1800,
   "Marteau-du-Protocole_prixAchat": 9000,
   "Marteau-du-Protocole_classeTheme": "Firewaller",
-  "Marteau-du-Protocole_sousClasseTheme": "Protocole-Sacre",
+  "Marteau-du-Protocole_sousClasseTheme": "Protocole-Sacré",
 
   "Marteau-du-Serment_slot": "arme",
   "Marteau-du-Serment_rarete": "legendaire",
@@ -1149,5 +1149,5 @@
   "Luth-du-Patch_prixVente": 1800,
   "Luth-du-Patch_prixAchat": 9000,
   "Luth-du-Patch_classeTheme": "Algorythmancien",
-  "Luth-du-Patch_sousClasseTheme": "Patch-Melodique"
+  "Luth-du-Patch_sousClasseTheme": "Patch-Mélodique"
 }

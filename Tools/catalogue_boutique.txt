@@ -1,0 +1,68 @@
+# 🐿️ La boutique de Faîne l'Écureuil-Archive
+*Désert · objets légendaires · introuvables ailleurs*
+
+**Comment acheter** — il te faut **deux choses** :
+> 🐪 un **jeton de caravane** (récompense de points de chaîne *Caravane du Désert*)
+> 💾 la **RAM** correspondante
+
+Puis dans le chat Twitch : `!acheter [nom exact]`
+*Les accents et la casse n'ont pas d'importance.*
+
+⚠️ Un jeton = **un** achat. Sac plein ou RAM insuffisante : le jeton **n'est pas** consommé.
+
+---
+
+## 🛡️ Armures & accessoires — par classe
+
+**Hexadécimeur**
+`Anneau-de-Sel         ` +12 CA                             **6 000 RAM**  *(revente 1 800)*
+`Plastron-de-Sel       ` +12 CA · poids 3                   **6 000 RAM**  *(revente 1 800)*
+
+**Cryptolame**
+`Talisman-de-Mirage    ` +12 atq                            **6 000 RAM**  *(revente 1 800)*
+`Veste-de-Mirage       ` +12 CA                             **6 000 RAM**  *(revente 1 800)*
+
+**Hackmancien**
+`Gland-de-Verre        ` +60 mana                           **6 000 RAM**  *(revente 1 800)*
+`Robe-de-Verre-Foudre  ` +12 CA · +60 mana                  **6 000 RAM**  *(revente 1 800)*
+
+**Firewaller**
+`Bracelet-de-Dune      ` +12 CA                             **6 000 RAM**  *(revente 1 800)*
+`Cuirasse-de-Dune      ` +14 CA · poids 6                   **6 000 RAM**  *(revente 1 800)*
+
+**Algorythmancien**
+`Plume-de-Vautour      ` +12 cha                            **6 000 RAM**  *(revente 1 800)*
+`Manteau-de-Caravane   ` +12 CA · +12 cha                   **6 000 RAM**  *(revente 1 800)*
+
+======================================================================
+=== MESSAGE SUIVANT (limite Discord : 2000 caracteres) ===
+======================================================================
+
+## ⚔️ Armes — une par sous-classe
+
+*Réservées à ceux qui ont choisi leur voie au niveau 5.*
+
+**Hexadécimeur**
+*Bloc-Hex* — `Rempart-Hexadecimal   ` +24 atq                            **9 000 RAM**  *(revente 1 800)*
+*Surcharge* — `Lame-Surtension       ` +24 atq                            **9 000 RAM**  *(revente 1 800)*
+
+**Cryptolame**
+*Byte-Fantôme* — `Triple-Absence        ` +24 atq                            **9 000 RAM**  *(revente 1 800)*
+*Pointeur-Null* — `Arc-du-Vide           ` +24 atq                            **9 000 RAM**  *(revente 1 800)*
+
+**Hackmancien**
+*Faille-Zéro* — `Baton-Faille-Zero     ` +24 atq · +60 mana                 **9 000 RAM**  *(revente 1 800)*
+*Compilateur* — `Sceptre-Compilateur   ` +24 atq · +60 mana                 **9 000 RAM**  *(revente 1 800)*
+
+**Firewaller**
+*Protocole-Sacré* — `Marteau-du-Protocole  ` +24 atq · +6 CA                    **9 000 RAM**  *(revente 1 800)*
+*Serment-Binaire* — `Marteau-du-Serment    ` +24 atq · +6 CA                    **9 000 RAM**  *(revente 1 800)*
+
+**Algorythmancien**
+*Barde-Binaire* — `Luth-Binaire          ` +24 atq · +12 cha                  **9 000 RAM**  *(revente 1 800)*
+*Patch-Mélodique* — `Luth-du-Patch         ` +24 atq · +12 cha                  **9 000 RAM**  *(revente 1 800)*
+
+---
+
+*Tu peux revendre n'importe quel objet avec `!vendre [nom]` — y compris ce que tu portes.*
+*Faîne ne rachète pas au prix qu'elle vend. « Rien ne se perd chez moi. Rien ne se donne non plus. »*
