@@ -43,6 +43,7 @@
 
   "boutique_catalogue": "loot_legendaire",
   "caravane_achats_par_ouverture": 1,
+  "caravane_reduction_pionnier_pct": 50,
 
   "quete_poids_zone_courante": 75,
   "quete_zone_speciale": "Désert",

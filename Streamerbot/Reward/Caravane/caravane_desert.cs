@@ -50,7 +50,6 @@ public class CPHInline
         json = EnsureChamp(json, "caravaneAchats", "0", false);
         json = AjouterValeur(json, "caravaneAchats", parOuv);
         int total = int.Parse(LireValeur(json, "caravaneAchats"));
-        File.WriteAllText(cheminFichier, json);
 
 
         // 2) La découverte du Désert — GLOBALE et définitive. Le premier qui paie
@@ -75,10 +74,26 @@ public class CPHInline
             CPH.LogWarn("Caravane — ouverture du Désert impossible : " + ex.Message);
         }
 
+        // Prime de pionnier : celui qui ouvre la route pour TOUT le chat repart avec
+        // une reduction. Sans ca, le premier acheteur paie 1000 points pour offrir la
+        // zone aux autres et ne garde qu'un jeton qu'il ne peut souvent pas encore utiliser.
+        int reduc = 0;
+        if (premiere)
+        {
+            int.TryParse(LireValeur(cfgG, "caravane_reduction_pionnier_pct"), out reduc);
+            if (reduc > 0)
+            {
+                json = EnsureChamp(json, "reductionBoutique", "0", false);
+                json = ModifierValeur(json, "reductionBoutique", reduc.ToString(), false);
+            }
+        }
+        File.WriteAllText(cheminFichier, json);
+
         if (premiere)
             CPH.SendMessage("🐪 Une caravane franchit la dernière dune — " + nomJoueur
                           + " vient d'ouvrir la route du Désert pour tout Arbonet ! "
-                          + "Les missives de Faîne arrivent dans l'Antre pour les aventuriers de niveau 6 et plus.");
+                          + "Les missives de Faîne arrivent dans l'Antre pour les aventuriers de niveau 6 et plus."
+                          + (reduc > 0 ? " 🎖️ Faîne n'oublie pas qui a ouvert la route : -" + reduc + "% sur son prochain achat." : ""));
 
         CPH.SendMessage("🐿️ Faîne déballe ses réserves pour " + nomJoueur + " — "
                       + total + " achat(s) en attente. Catalogue épinglé dans #boutique sur Discord.");

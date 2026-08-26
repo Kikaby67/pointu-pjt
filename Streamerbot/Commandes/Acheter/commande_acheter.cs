@@ -137,8 +137,16 @@ public class CPHInline
             return true;
         }
 
-        int prix = int.Parse(LireValeur(cfgItems, trouve + "_prixAchat"));
-        if (prix <= 0)
+        int prixBase = int.Parse(LireValeur(cfgItems, trouve + "_prixAchat"));
+        int prix     = prixBase;
+
+        // Reduction accordee au pionnier qui a ouvert le Desert (voir caravane_desert.cs).
+        // Elle s'applique a UN achat, puis disparait.
+        json = EnsureChamp(json, "reductionBoutique", "0", false);
+        int reduc = 0; int.TryParse(LireValeur(json, "reductionBoutique"), out reduc);
+        if (reduc > 0) prix = prixBase - (prixBase * reduc / 100);
+
+        if (prixBase <= 0)
         {
             CPH.SendMessage(nomJoueur + ", " + trouve + " n'a pas de prix — préviens le streamer.");
             CPH.LogWarn("!acheter — " + trouve + " est au catalogue mais sans _prixAchat.");
@@ -158,20 +166,23 @@ public class CPHInline
         }
         if (ram < prix)
         {
-            CPH.SendMessage("🐿️ Faîne repose " + trouve + " sur l'étagère. « " + prix + " RAM. Tu en as "
-                + ram + ". » Ton jeton reste valable.");
+            CPH.SendMessage("🐿️ Faîne repose " + trouve + " sur l'étagère. « " + prix + " RAM"
+                + (reduc > 0 ? " (déjà -" + reduc + "%)" : "") + ". Tu en as " + ram
+                + ". » Ton jeton reste valable.");
             return true;
         }
 
         // Tout est validé : on débite, on consomme le jeton, on livre.
         json = AjouterValeur(json, "ram", -prix);
         json = AjouterValeur(json, "caravaneAchats", -1);
+        if (reduc > 0) json = ModifierValeur(json, "reductionBoutique", "0", false);   // usage unique
         json = ModifierValeurString(json, "inventaire", inv == "" ? trouve : inv + "," + trouve);
         File.WriteAllText(cheminFichier, json);
 
         int restants = jetons - 1;
         CPH.SendMessage("🐿️ Faîne compte, recompte, puis pousse " + trouve + " vers " + nomJoueur
-            + " — " + prix + " RAM (reste " + (ram - prix) + "). "
+            + " — " + prix + " RAM" + (reduc > 0 ? " au lieu de " + prixBase + " (-" + reduc + "%)" : "")
+            + " (reste " + (ram - prix) + "). "
             + (restants > 0 ? restants + " achat(s) encore ouvert(s)." : "La caravane repart.")
             + " Tape !equiper " + trouve + " pour t'en servir.");
         return true;

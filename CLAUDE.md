@@ -964,6 +964,8 @@ rencontre marchande ne pourrait jamais atteindre la boutique.
 **Boutique de Faîne** — deux monnaies, l'une donne le *droit*, l'autre paie :
 - **1 jeton** (`caravaneAchats`, posé par le reward 🐪 Caravane du Désert) — consommé à l'achat.
 - **La RAM** — `<Item>_prixAchat` : 6 000 pour une armure/accessoire, 9 000 pour une arme de sous-classe.
+  Une éventuelle `reductionBoutique` (prime de pionnier) s'applique avant le contrôle de solde,
+  et n'est consommée **qu'en cas d'achat réussi**.
 - Catalogue = `config_global → boutique_catalogue` (nom du pool) → le CSV correspondant dans
   `config_quetes` (par défaut `loot_legendaire`, les 20 légendaires). **Aucun nom d'item en dur.**
 - Recherche **insensible à la casse et aux accents**.
@@ -1063,6 +1065,12 @@ Deux effets de portée différente, dans la même redemption :
 
 Un jeton plutôt qu'une fenêtre de temps : une redemption trois minutes avant la fin du stream reste
 utilisable, donc aucun remboursement à la main.
+
+**🎖️ Prime de pionnier** — celui dont la redemption **ouvre** la zone (la première, donc) recoit
+`reductionBoutique = caravane_reduction_pionnier_pct` (50 %) sur son profil. Sans elle, le premier
+acheteur paie 1 000 points pour offrir le Désert à tout le chat et ne garde qu'un jeton souvent
+inutilisable dans l'immédiat. La réduction s'applique à **un** achat puis se remet à 0 — elle
+n'expire pas, elle attend.
 
 **Remboursement automatique** si le viewer n'a pas de profil ou pas de classe :
 `CPH.TwitchRedemptionCancel(rewardId, redemptionId)` rend les points. Ne fonctionne que si le reward
