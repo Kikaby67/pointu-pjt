@@ -750,24 +750,40 @@ Système basé sur timestamps Unix — **pas de `CPH.Wait()`**.
    - Sinon : calcule `secondesEcoulees = (maintenant - queteDernierTick) - queteTotalPause`, si terminé → résoudre (80% succès)
 4. Sinon : choisit une quête aléatoire, initialise tous les champs, `CPH.EnableTimer("QuestCheck")`
 
-**Quêtes** — Format `{ description, ticks, xp, ram }` :
+**72 quêtes** — 6 zones × (1 artefact + 6 secondaires + 5 services), numérotées `quete001`→`quete072`.
+
+| Famille | `_type` | Donneur | Récompense | Répétable |
+|---|---|---|---|---|
+| **Artefact de mémoire** | `artefact` | **Pointu** uniquement | l'artefact + XP/RAM | non |
+| **Secondaire** | `secondaire` | le PNJ nommé de la zone, **par missive dans l'Antre** | 1 item du `_recompensePool` de la zone + XP/RAM | non |
+| **Service** | `service` | population anonyme (missive affichée) | XP/RAM seuls | **oui** |
+
+**Champs propres à la V3** (en plus de `_id`/`_type`/`_zone`/`_nom`/`_demandeur`/`_demandeurCle`/`_description`/`_ticks`/`_xp`/`_ram`) :
 ```
-artefact_01 : 6 ticks (30 min) → 100 XP · 10 Ram
-artefact_02 : 5 ticks (25 min) → 80 XP  · 8 Ram
-artefact_03 : 3 ticks (15 min) → 50 XP  · 5 Ram
-artefact_04 : 2 ticks (10 min) → 30 XP  · 3 Ram
-artefact_05 : 1 tick  (5 min)  → 10 XP  · 1 Ram
-service_01  : 3 ticks (15 min) → 50 XP  · 5 Ram
-service_02  : 4 ticks (20 min) → 70 XP  · 7 Ram
-service_03  : 5 ticks (25 min) → 90 XP  · 9 Ram
-service_04  : 6 ticks (30 min) → 120 XP · 12 Ram
-service_05  : 2 ticks (10 min) → 40 XP  · 4 Ram
-entretien_01: 3 ticks (15 min) → 50 XP  · 5 Ram
-entretien_02: 4 ticks (20 min) → 70 XP  · 7 Ram
-entretien_03: 5 ticks (25 min) → 90 XP  · 9 Ram
-artefact_06 : 5 ticks (25 min) → 95 XP  · 10 Ram  (Désert)
+_texteVictoire / _texteEchec   ← texte de résolution PROPRE à la quête (prioritaire sur les
+                                 répliques PNJ de config_lore_textes, qui deviennent le repli)
+_recompensePool                ← secondaires : pool du palier de la zone (loot_bois → loot_mythique).
+                                 Vide pour le Désert, qui paie en RAM au lieu de donner un item.
+— artefacts uniquement —
+_niveauMin · _quetesMin        ← seuils de déblocage
+_equipementComplet             ← "true" : les 3 slots doivent être remplis (n'importe quel palier)
+_requiert                      ← `_id` de l'artefact précédent — la chaîne principale
 ```
+
+**La chaîne des artefacts** : Arbonet (niv 3) → Plaines (5) → Lacs (6) → Montagne (8) → **Désert** (8)
+→ Marais (10). Le Désert porte le retournement narratif ; comme il dépend de la découverte de la zone,
+`!ouvrirdesert` est le filet qui empêche la chaîne de se bloquer.
+
+Le Désert paie en **RAM** là où les autres zones donnent de l'équipement (son palier, le Légendaire,
+ne s'achète que chez Faîne) : ses services rapportent 100 RAM et sont répétables — c'est le moteur
+économique du jeu de fin.
+
 > 1 tick = 5 minutes réelles
+
+> ⚠️ **Le moteur ne lit encore ni `_zone`, ni `_texteVictoire`, ni les conditions d'artefact,
+> ni la non-répétabilité.** `quest_system.cs` tire au hasard dans les 72 : un niveau 1 peut recevoir
+> l'artefact du Marais. **Ne pas streamer avant l'étape de code** (pondération par zone, `quetesFaites`,
+> déblocage d'artefact, textes par quête, récompense item).
 ```
 Trigger : Command Triggered → !quete
 ```
