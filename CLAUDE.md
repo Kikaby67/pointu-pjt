@@ -68,6 +68,8 @@ Pointu-PJT/
 │   ├── Moderation/                  # HORS jeu RPG — "Prison de Sagesse" phase A
 │   │   ├── chat_logger.cs           # log complet du chat → JSONL (hors repo)
 │   │   └── timeout_manuel.cs        # timeout 5 min piloté par Touch Portal
+│   ├── Overlay/
+│   │   └── overlay_etat.cs          # Timer 5s → agrégat lu par l'overlay OBS (lecture seule)
 │   └── Reward/
 │       ├── Jet de dé/           # 1d6_PV.cs, 1d4_CA.cs
 │       ├── Bonus +2/            # +2_PV.cs, +2_CA.cs, +2_Attaque.cs
@@ -1451,6 +1453,53 @@ private string ModifierValeurString(string json, string cle, string val)
 
 > ⚠️ `LireValeur` s'arrête à la première `,` ou `\n` — elle **casse** les valeurs CSV.
 > Toujours utiliser `LireValeurString` pour `inventaire`.
+
+---
+
+## Overlay OBS — quêtes & progression ✅
+
+Panneau à l'écran (viewers) qui affiche les quêtes en cours et le classement des joueurs.
+
+**Deux morceaux, aucun couplage avec le gameplay :**
+
+| Fichier | Rôle |
+| :---- | :---- |
+| `Streamerbot/Overlay/overlay_etat.cs` | Action SB **"Overlay Etat Pointu"**, déclenchée par un **timer 5 s**. Lit tous les profils + `config_quetes/global/level` et écrit **un seul** fichier `overlay/Donnees/Pointu-Etat.json`. **Ne modifie aucun profil.** |
+| `overlay/overlay-pointu.html` | Source navigateur OBS (1920×1080, fond transparent). `fetch` du JSON toutes les 5 s, comme les `scene-*.html`. |
+
+**Filtre d'activité :** le classement n'affiche que les joueurs **présents** — actifs depuis
+moins de `overlay_actif_seuil_secondes` (clé absente ou 0 → on retombe sur
+`timer_activite_seuil_secondes`, même définition que `Timer_XP_visionnage.cs`). Un joueur
+**en quête est toujours affiché**, même absent du chat depuis des heures : sa carte est déjà
+au-dessus, l'enlever du classement serait incohérent. Sans ce filtre, le classement fige les
+gros scores de joueurs partis depuis des semaines et ceux qui jouent ce soir ne se voient jamais.
+
+**Règles à ne pas casser :**
+
+- L'action est **en lecture seule** sur les profils. Si un jour elle doit écrire, elle
+  entrera en concurrence avec `QuestCheck` — ne pas le faire sans verrou.
+- Elle ne parle **jamais** dans le chat, et avale toutes ses exceptions (`CPH.LogWarn`) :
+  une panne d'overlay ne doit pas remonter dans Streamer.bot.
+- Écriture en `.tmp` puis copie : l'overlay lit toutes les 5 s et tomberait sinon sur
+  un fichier à moitié écrit.
+- Le calcul d'avancement reproduit celui de `quest_timer.cs` (`queteTicksRestants` est le
+  **total** requis, 1 tick = 5 min, pauses déduites — y compris la pause **en cours**,
+  qui n'est ajoutée à `queteTotalPause` qu'à sa fermeture). Si le timer change, changer ici aussi.
+- La zone affichée reprend `ZoneCourante()` de `quest_system.cs` (Désert exclu de la progression).
+
+**Contrat du JSON** — la page ne fait qu'afficher, tout est résolu côté C# :
+
+```json
+{ "ts": 1788094368, "desertDecouvert": true,
+  "quetes":  [ { "joueur": "...", "nom": "...", "type": "service", "zone": "Arbonet",
+                 "pct": 33, "resteMin": 7, "pause": false } ],
+  "joueurs": [ { "nom": "...", "niveau": 5, "classe": "...", "xpPct": 13, "ram": 3760,
+                 "zone": "Plaines", "quetesFaites": 36, "enQuete": false } ] }
+```
+
+`joueurs` est **trié par XP décroissante** côté C# : le rang affiché est l'ordre du tableau.
+`classe`, `zone` et `quetesFaites` ne sont pas affichés aujourd'hui — ils sont là pour
+enrichir la page sans retoucher au C#.
 
 ---
 

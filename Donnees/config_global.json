@@ -22,6 +22,9 @@
   "timer_regen_mana": 3,
   "timer_activite_seuil_secondes": 1800,
 
+  "_aideOverlay": "Fenetre d'activite pour l'overlay OBS (Overlay Etat Pointu). Seuls les joueurs actifs depuis moins de N secondes sont affiches dans le classement — un joueur en quete est toujours affiche. 0 ou cle absente = on reprend timer_activite_seuil_secondes.",
+  "overlay_actif_seuil_secondes": 1800,
+
   "ennemi_ca_defaut": 12,
   "ennemi_degats_defaut": 6,
   "ennemi_xp_defaut": 15,
