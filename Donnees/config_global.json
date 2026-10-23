@@ -153,5 +153,9 @@
   "wizz_amplitude_px": 18,
   "wizz_volume_pct": 80,
   "wizz_scene": "",
-  "wizz_source": ""
+  "wizz_source": "",
+
+  "dramatique_source": "Cam 4k",
+  "dramatique_duree_secondes": 20,
+  "dramatique_volume_pct": 50
 }

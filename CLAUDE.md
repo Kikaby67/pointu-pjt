@@ -75,7 +75,8 @@ Pointu-PJT/
 │       ├── Bonus +2/            # +2_PV.cs, +2_CA.cs, +2_Attaque.cs
 │       ├── Caravane/            # caravane_desert.cs (ouvre le Désert + jeton d'achat)
 │       ├── DonationGoal/        # suggestion_donationgoal.cs (Suggestion de Donation Goal → DonationGoal.txt)
-│       └── Wizz/                # wizz.cs (📳 Wizz façon MSN : son + scène OBS qui tremble)
+│       ├── Wizz/                # wizz.cs (📳 Wizz façon MSN : son + scène OBS qui tremble)
+│       └── Dramatique/          # dramatique.cs (🎭 cam en noir et blanc + musique triste)
 ├── Donnees/
 │   ├── joueurs/                 # Un .json par joueur (ex: kikabygaming.json) — GIT-IGNORÉ (état de jeu mouvant)
 │   ├── config_classes.json      # ★ Source unique : stats classes + sous-classes
@@ -203,6 +204,7 @@ timer_activite_seuil_secondes (1800) ← inactivité max pour recevoir XP (30 mi
 moderation_timeout_secondes (300) ← durée du timeout manuel (hors jeu RPG, cf. Modération)
 wizz_duree_ms (900) · wizz_intervalle_ms (30) · wizz_amplitude_px (18) · wizz_volume_pct (80)
 wizz_scene ("" = scène en direct) · wizz_source ("" = toutes les sources) ← reward 📳 Wizz (hors jeu RPG)
+dramatique_source (Cam 4k) · dramatique_duree_secondes (20, si pas de musique) · dramatique_volume_pct (50) ← reward 🎭
 
 rencontre_taux_ennemi (40)     ← % de chance de rencontre ennemie par check
 rencontre_taux_allie (30)      ← % de chance de rencontre alliée (30% = rien)
@@ -1165,6 +1167,7 @@ Trigger : Command Triggered → !duel
 | `caravane_desert.cs` | 🐪 Caravane du Désert | 1 000 | découvre le Désert (global) + 1 jeton d'achat (perso) |
 | `suggestion_donationgoal.cs` | 💡 Suggestion de Donation Goal | 1 | Append de la saisie viewer dans un fichier texte |
 | `wizz.cs` | 📳 Wizz | 300 | Son MSN + la scène OBS tremble ~1 s (hors jeu RPG) |
+| `dramatique.cs` | 🎭 Moment dramatique | 500 | Cam en noir et blanc le temps d'une musique triste (hors jeu RPG) |
 
 > Jet de dé : repart de la BASE classe depuis config, ne stack pas.
 > Boost +2 : s'empile sur tout.
@@ -1189,6 +1192,17 @@ Trigger : Channel Point Reward (un fichier par reward)
 - `CPH.Wait` est autorisé ici : ce n'est pas un flux de quête.
 ```
 Trigger : Channel Point Reward → 📳 Wizz (à attacher à la main dans SB)
+```
+
+**`dramatique.cs` → `Reward/Dramatique/`** — la cam passe en noir et blanc pendant une musique triste.
+- Filtre OBS **dédié** `Dramatique N&B` (Correction des couleurs, saturation −1) sur `dramatique_source`,
+  **créé automatiquement** au 1er passage s'il manque. Les filtres existants de la cam ne sont jamais touchés ;
+  on peut retoucher le sien dans OBS, le code ne réécrit pas ses réglages.
+- Musique `C:\Users\Florian\Desktop\Stream\Animation\Dramatique\triste.mp3` (hors repo), lue en **bloquant** :
+  l'effet dure exactement le morceau. Choisir un extrait court (15-30 s). Sans fichier : `dramatique_duree_secondes`.
+- Filtre désactivé dans un `finally` ; `lock` statique pour que deux redemptions s'enchaînent sans se couper.
+```
+Trigger : Channel Point Reward → 🎭 Moment dramatique (à attacher à la main dans SB)
 ```
 
 ---
