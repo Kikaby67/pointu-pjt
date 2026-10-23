@@ -146,5 +146,12 @@
   "creation_ca_de": 4,
   "creation_atq_de": 4,
 
-  "moderation_timeout_secondes": 300
+  "moderation_timeout_secondes": 300,
+
+  "wizz_duree_ms": 900,
+  "wizz_intervalle_ms": 30,
+  "wizz_amplitude_px": 18,
+  "wizz_volume_pct": 80,
+  "wizz_scene": "",
+  "wizz_source": ""
 }

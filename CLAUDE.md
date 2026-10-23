@@ -74,7 +74,8 @@ Pointu-PJT/
 │       ├── Jet de dé/           # 1d6_PV.cs, 1d4_CA.cs
 │       ├── Bonus +2/            # +2_PV.cs, +2_CA.cs, +2_Attaque.cs
 │       ├── Caravane/            # caravane_desert.cs (ouvre le Désert + jeton d'achat)
-│       └── DonationGoal/        # suggestion_donationgoal.cs (Suggestion de Donation Goal → DonationGoal.txt)
+│       ├── DonationGoal/        # suggestion_donationgoal.cs (Suggestion de Donation Goal → DonationGoal.txt)
+│       └── Wizz/                # wizz.cs (📳 Wizz façon MSN : son + scène OBS qui tremble)
 ├── Donnees/
 │   ├── joueurs/                 # Un .json par joueur (ex: kikabygaming.json) — GIT-IGNORÉ (état de jeu mouvant)
 │   ├── config_classes.json      # ★ Source unique : stats classes + sous-classes
@@ -200,6 +201,8 @@ quete_cooldown_abandon_secondes ← cooldown après !abandon (300 = 5 min)
 timer_xp_gain / timer_regen_pv / timer_regen_mana ← timer 15 min (5 / 2 / 3)
 timer_activite_seuil_secondes (1800) ← inactivité max pour recevoir XP (30 min)
 moderation_timeout_secondes (300) ← durée du timeout manuel (hors jeu RPG, cf. Modération)
+wizz_duree_ms (900) · wizz_intervalle_ms (30) · wizz_amplitude_px (18) · wizz_volume_pct (80)
+wizz_scene ("" = scène en direct) · wizz_source ("" = toutes les sources) ← reward 📳 Wizz (hors jeu RPG)
 
 rencontre_taux_ennemi (40)     ← % de chance de rencontre ennemie par check
 rencontre_taux_allie (30)      ← % de chance de rencontre alliée (30% = rien)
@@ -1161,6 +1164,7 @@ Trigger : Command Triggered → !duel
 | `+2_Attaque.cs` | ⭐ Boost +2 — Attaque | 20 000 | bonusAttaque += 2 |
 | `caravane_desert.cs` | 🐪 Caravane du Désert | 1 000 | découvre le Désert (global) + 1 jeton d'achat (perso) |
 | `suggestion_donationgoal.cs` | 💡 Suggestion de Donation Goal | 1 | Append de la saisie viewer dans un fichier texte |
+| `wizz.cs` | 📳 Wizz | 300 | Son MSN + la scène OBS tremble ~1 s (hors jeu RPG) |
 
 > Jet de dé : repart de la BASE classe depuis config, ne stack pas.
 > Boost +2 : s'empile sur tout.
@@ -1173,6 +1177,19 @@ Trigger : Channel Point Reward (un fichier par reward)
 - Lit la saisie via `args["rawInput"]` (repli `args["message"]`), aplatit les retours à la ligne.
 - **Append** dans `C:\Users\Florian\Desktop\Stream\Donation goal\DonationGoal.txt` (dossier + fichier créés au besoin).
 - Format d'une ligne : `AAAA-MM-JJ HH:MM | pseudo : suggestion`. Les échanges suivants s'ajoutent à la suite.
+
+**`wizz.cs` → `Reward/Wizz/`** — le wizz de MSN. **Aucun profil lu ni écrit.**
+- Message chat `📳 {pseudo} a envoyé un Wizz !` + son `C:\Users\Florian\Desktop\Stream\Animation\Wizz\wizz.mp3`
+  (hors repo ; fichier absent = log, le tremblement a lieu quand même).
+- Tremblement via `CPH.ObsSendRaw` : relit la position de chaque source de la scène, applique un décalage
+  aléatoire **amorti** toutes les `wizz_intervalle_ms`, puis **remet chaque source à sa position d'origine**
+  dans un `finally`. Seules les sources de 1er niveau bougent (un groupe bouge en bloc).
+- `lock` statique : deux wizz rapprochés liraient sinon une position déjà décalée comme « origine » et la
+  scène resterait de travers. Mettre aussi l'action dans une **queue bloquante** et un cooldown sur le reward.
+- `CPH.Wait` est autorisé ici : ce n'est pas un flux de quête.
+```
+Trigger : Channel Point Reward → 📳 Wizz (à attacher à la main dans SB)
+```
 
 ---
 
