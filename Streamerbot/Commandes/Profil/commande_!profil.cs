@@ -65,17 +65,42 @@ public class CPHInline
         if (LireValeur(json, "enCombat") == "true")     msg += " · ⚔️ en rencontre";
         else if (LireValeur(json, "enQuete") == "true") msg += " · 🧭 en quête";
 
-        string equipe = "";
-        string armeEq   = LireValeur(json, "armeEquipee");
-        string armureEq = LireValeur(json, "armureEquipee");
-        string accEq    = LireValeur(json, "accessoireEquipe");
-        if (armeEq   != "" && armeEq   != "0") equipe += armeEq;
-        if (armureEq != "" && armureEq != "0") equipe += (equipe != "" ? ", " : "") + armureEq;
-        if (accEq    != "" && accEq    != "0") equipe += (equipe != "" ? ", " : "") + accEq;
-        if (equipe   != "") msg += " | " + equipe;
+        // Chaque objet équipé avec ses chiffres : « Lame-de-Pointu [+2atq] »
+        string   cfgItems = File.ReadAllText(CONFIG_ITEMS);
+        string   equipe   = "";
+        string[] slotsEq  = { "armeEquipee", "armureEquipee", "accessoireEquipe" };
+        foreach (string slot in slotsEq)
+        {
+            string item = LireValeur(json, slot);
+            if (item == "" || item == "0") continue;
+            equipe += (equipe != "" ? ", " : "") + item + " [" + BonusItem(cfgItems, item) + "]";
+        }
 
+        // Limite Twitch : 500 caractères. Avec des noms longs, l'équipement part dans un 2e message.
+        bool equipeAPart = equipe != "" && msg.Length + 3 + equipe.Length > 500;
+        if (equipe != "" && !equipeAPart) msg += " | " + equipe;
         CPH.SendMessage(msg);
+        if (equipeAPart) CPH.SendMessage("🎒 " + nomJoueur + " — " + equipe);
         return true;
+    }
+
+    // Les caractéristiques d'un objet en version courte : « +2atq +1CA · poids 1 »
+    private string BonusItem(string cfgItems, string item)
+    {
+        int atq   = int.Parse(LireValeur(cfgItems, item + "_attaqueBonus"));
+        int ca    = int.Parse(LireValeur(cfgItems, item + "_caBonus"));
+        int man   = int.Parse(LireValeur(cfgItems, item + "_manaBonus"));
+        int cha   = int.Parse(LireValeur(cfgItems, item + "_charismeBonus"));
+        int poids = int.Parse(LireValeur(cfgItems, item + "_poids"));
+
+        string bonus = "";
+        if (atq != 0) bonus += (atq > 0 ? "+" : "") + atq + "atq ";
+        if (ca  != 0) bonus += (ca  > 0 ? "+" : "") + ca  + "CA ";
+        if (man != 0) bonus += (man > 0 ? "+" : "") + man + "mana ";
+        if (cha != 0) bonus += (cha > 0 ? "+" : "") + cha + "cha ";
+        bonus = bonus.Trim();
+        if (poids > 0) bonus += (bonus != "" ? " · " : "") + "poids " + poids;
+        return bonus == "" ? "déco" : bonus;
     }
 
     private int GetBonusItems(string json, string stat)

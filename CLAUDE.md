@@ -34,6 +34,7 @@ Pointu-PJT/
 │   │   ├── Inventaire/          # !inventaire
 │   │   ├── Equiper/             # !equiper
 │   │   ├── Equipement/          # !equipement (lecture seule)
+│   │   ├── Stat/                # !stat / !stats (détail perso + objets, lecture seule)
 │   │   ├── Vendre/              # !vendre
 │   │   ├── Utiliser/            # !utiliser
 │   │   ├── Abandon/             # !abandon
@@ -703,7 +704,10 @@ Affiche les stats en 4 messages :
 1. Nom | Niv | XP | Ram
 2. Classe | Sous-classe | Arme (ou invite à choisir)
 3. PV/pvMax | CA | Atq | Mana (si > 0) | Charisme (si > 0)
-4. Combats V/D | Quêtes | EN COMBAT / EN QUETE si actif | items équipés (Arme/Armure/Acc si présents)
+4. Combats V/D | Quêtes | EN COMBAT / EN QUETE si actif | items équipés **avec leurs chiffres**
+   (`Lame-de-Pointu [+2atq], Manteau-de-Mousse [+2CA +2cha]`, `poids N` si > 0)
+> En pratique tout tient dans **un seul** message ; si les noms dépassent 500 caractères,
+> l'équipement part dans un 2e message `🎒`.
 ```
 Trigger : Command Triggered → !profil
 ```
@@ -994,6 +998,8 @@ Trigger : Command Triggered → !inventaire
 ### `!equiper [nom_item]` → `Commandes/Equiper/commande_equiper.cs`
 Équipe un item du sac dans son slot (arme/armure/accessoire).
 - Swap : item du sac → slot, ancien item équipé → sac (taille inchangée)
+- Ne retire qu'**un seul** exemplaire du sac (flag `dejaRetire`) — 🐛 corrigé le 26/10/2026 : les doublons
+  disparaissaient tous, et un `!vendre` suivant vendait alors l'exemplaire équipé.
 - Lit `_slot` depuis `config_items.json` → détermine le champ (`armeEquipee`, `armureEquipee`, `accessoireEquipe`)
 - Bloqué si `enCombat == true`
 - Refuse les consommables et items de vente (redirect vers `!utiliser` / `!vendre`)
@@ -1004,13 +1010,27 @@ Trigger : Command Triggered → !equiper
 
 ### `!equipement` → `Commandes/Equipement/commande_equipement.cs`
 Affiche les 3 slots équipés **et le cumul des bonus** — lecture seule, n'écrit jamais dans le profil.
-- Message 1 : `Arme: X [+2atq] · Armure: Y [+1CA] · Accessoire: Rien` (slot vide = `Rien`,
-  item sans bonus = `déco`)
-- Message 2 : `Bonus total : +N atq +N CA +N mana +N charisme` (ou « Aucun bonus d'équipement actif »)
+- Message 1 : `Arme: X [+2atq] · Armure: Y [+1CA · poids 2] · Accessoire: Rien` (slot vide = `Rien`,
+  item sans bonus = `déco`, valeurs négatives affichées avec leur signe)
+- Message 2 : `Bonus total : +N atq +N CA +N mana +N charisme · poids N (−X% à !fuir)`
+  (malus = poids × `fuite_poids_pct`) ou « Aucun bonus d'équipement actif »
 - Additionne `_attaqueBonus` / `_caBonus` / `_manaBonus` / `_charismeBonus` depuis `config_items.json`
 - Complémentaire de `!inventaire` (qui liste le sac) : ici on ne voit que l'équipé, avec le détail chiffré
 ```
 Trigger : Command Triggered → !equipement
+```
+
+### `!stat` → `Commandes/Stat/commande_stat.cs`
+Détail de chaque caractéristique en **un message** — lecture seule, n'écrit jamais dans le profil.
+```
+📊 pseudo — PV 36/36 · CA 23 (19 perso +4 obj) · Atq +7 (+2 perso +5 obj) · Mana 10 (5 perso +5 obj) · Cha 12 (8 perso +4 obj) · Agi 8 · Poids 0
+```
+- **perso** = ce qui est gravé dans le profil (classe, jets de création, niveaux, sous-classe, rewards) ;
+  **obj** = la somme des 3 objets équipés (`config_items`). Sans apport d'objet, seule la valeur s'affiche.
+- Agilité : même repli que `!fuir` (profil → `<classe>_agilite` → `agilite_defaut`).
+- Mana masqué si 0. Pas de pourcentages de réussite (choix du 26/10/2026 : détail des stats seul).
+```
+Trigger : Command Triggered → !stat  +  !stats (alias)
 ```
 
 ### `!vendre [nom_item] [quantité]` → `Commandes/Vendre/commande_vendre.cs`
@@ -1019,6 +1039,7 @@ Vend un item du sac ou d'un slot équipé contre des RAM.
 - **Quantité optionnelle** (dernier mot numérique) : `!vendre Potion 2` vend 2 Potions et laisse le reste.
   Plafonnée au stock réel (note « tu n'en avais que N »). Un slot équipé ne vend qu'1 exemplaire.
 - Lit `_prixVente` depuis config (défaut 5 RAM), gain = prix × nb vendus
+- Le sac est **toujours prioritaire** sur l'équipé ; vendre un objet équipé le dit dans le message (slot vidé).
 - Bloqué si `enCombat == true`
 ```
 Trigger : Command Triggered → !vendre

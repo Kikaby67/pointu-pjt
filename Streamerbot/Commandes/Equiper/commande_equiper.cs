@@ -91,11 +91,13 @@ public class CPHInline
         string ancienEquipe = LireValeur(json, champSlot);
         if (ancienEquipe == "0") ancienEquipe = "";
 
-        // Retirer l'item du sac
+        // Retirer UN SEUL exemplaire du sac : sans le flag, les doublons disparaissaient
+        // tous, et un !vendre suivant vendait alors l'exemplaire équipé.
         string nouvInventaire = "";
+        bool   dejaRetire     = false;
         foreach (string item in items)
         {
-            if (item.Trim() == itemTrouve) continue;
+            if (!dejaRetire && item.Trim() == itemTrouve) { dejaRetire = true; continue; }
             if (nouvInventaire != "") nouvInventaire += ",";
             nouvInventaire += item.Trim();
         }

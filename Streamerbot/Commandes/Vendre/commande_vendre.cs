@@ -129,6 +129,7 @@ public class CPHInline
             if (quantite > 1)
                 noteManque = " (objet équipé : 1 seul exemplaire vendu)";
             json = ModifierValeur(json, champSlotTrouve, "", true);
+            noteManque += " — c'était ton objet équipé, le slot est maintenant vide";
         }
 
         int gain = prixVente * nbVendus;
