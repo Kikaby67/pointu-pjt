@@ -7,6 +7,7 @@ public class CPHInline
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
     private const string CONFIG_QUETES   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_quetes.json";
     private const string CONFIG_LORE     = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_lore_textes.json";
+    private const string CONFIG_ITEMS    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_items.json";
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
     private const string CONFIG_LEVEL    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_level.json";
     private const string ETAT_GLOBAL     = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\etat_global.json";
@@ -38,11 +39,31 @@ public class CPHInline
         long maintenant = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         long cooldownFin = long.Parse(LireValeur(json, "queteCooldownFin"));
+        bool soinDefaite = LireValeur(json, "soinDefaite") == "true";
         if (cooldownFin > 0 && maintenant < cooldownFin)
         {
             int minutesRestantes = (int)Math.Ceiling((cooldownFin - maintenant) / 60.0);
-            CPH.SendMessage(nomJoueur + ", tu récupères dans l'Antre après ta défaite. Encore " + minutesRestantes + " minute(s) avant de pouvoir repartir en quête !");
+            // Le délai vient d'une défaite (soin en cours) ou d'un !abandon (pas de soin)
+            if (soinDefaite)
+                CPH.SendMessage(nomJoueur + ", Pointu te soigne dans l'Antre après ta défaite. Encore " + minutesRestantes + " minute(s) avant de pouvoir repartir en quête !");
+            else
+                CPH.SendMessage(nomJoueur + ", tu as abandonné ta dernière quête. Encore " + minutesRestantes + " minute(s) avant de pouvoir en reprendre une !");
             return true;
+        }
+
+        // Fin du délai de défaite : Pointu a tenu parole, le joueur repart sur pied.
+        // Le cooldown de !repos n'est pas touché : ce soin ne le consomme pas.
+        if (soinDefaite)
+        {
+            int pvMax   = int.Parse(LireValeur(json, "pvMax"));
+            int manaMax = int.Parse(LireValeur(json, "manaMax"))
+                        + GetBonusItems(json, File.ReadAllText(CONFIG_ITEMS), "manaBonus");
+            json = ModifierValeur(json, "pvActuels", pvMax.ToString(), false);
+            if (manaMax > 0) json = ModifierValeur(json, "manaActuels", manaMax.ToString(), false);
+            json = ModifierValeur(json, "soinDefaite", "false", false);
+            File.WriteAllText(cheminFichier, json);
+            CPH.SendMessage("🐢 Pointu a remis " + nomJoueur + " sur pied : PV " + pvMax + "/" + pvMax
+                + (manaMax > 0 ? " · Mana " + manaMax + "/" + manaMax : "") + ".");
         }
 
         if (LireValeur(json, "classeChoisie") != "true")
@@ -524,4 +545,17 @@ public class CPHInline
         return json.Substring(0, posDebut) + nouvelle + json.Substring(posDebut + ancienne.Length);
     }
 
+    // Bonus d'une stat cumulé sur les 3 objets équipés (ex. manaBonus de l'Écaille).
+    private int GetBonusItems(string json, string cfgItems, string stat)
+    {
+        string[] slots = { "armeEquipee", "armureEquipee", "accessoireEquipe" };
+        int total = 0;
+        foreach (string slot in slots)
+        {
+            string item = LireValeur(json, slot);
+            if (item != "" && item != "0")
+                total += int.Parse(LireValeur(cfgItems, item + "_" + stat));
+        }
+        return total;
+    }
 }

@@ -142,7 +142,7 @@ public class CPHInline
             json = TerminerQuete(json, maintenant, cooldown);
             File.WriteAllText(cheminFichier, json);
             CPH.SendMessage("💥 " + TexteLore(ennemNom, "defaite", rng) + " " + nomJoueur + compTxt + frappesTxt
-                + " est au tapis — quête échouée, repos dans l'Antre (" + (cooldown / 60) + " min).");
+                + " est au tapis — quête échouée. Pointu te soigne dans l'Antre : de retour dans " + (cooldown / 60) + " min.");
             return true;
         }
 
@@ -157,8 +157,8 @@ public class CPHInline
             json = TerminerQuete(json, maintenant, cooldown);
             File.WriteAllText(cheminFichier, json);
             CPH.SendMessage("💥 " + TexteLore(ennemNom, "defaite", rng) + " " + nomJoueur + compTxt + frappesTxt
-                + " -" + perteReelle + " PV, il s'effondre. Quête échouée, repos dans l'Antre ("
-                + (cooldown / 60) + " min).");
+                + " -" + perteReelle + " PV, il s'effondre. Quête échouée. Pointu te soigne dans l'Antre : de retour dans "
+                + (cooldown / 60) + " min.");
         }
         else
         {
@@ -200,7 +200,12 @@ public class CPHInline
         json = EnsureChamp(json, "compagnonActif", "", true);
         json = ModifierValeur(json, "compagnonActif", "", true);
         if (cooldownSecondes > 0)
+        {
             json = ModifierValeur(json, "queteCooldownFin", (maintenant + cooldownSecondes).ToString(), false);
+            // Défaite : Pointu soigne le joueur à la fin du délai (appliqué au prochain !quete)
+            json = EnsureChamp(json, "soinDefaite", "false", false);
+            json = ModifierValeur(json, "soinDefaite", "true", false);
+        }
         return json;
     }
 

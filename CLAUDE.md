@@ -755,6 +755,10 @@ Système basé sur timestamps Unix — **pas de `CPH.Wait()`**.
 
 **Flux :**
 1. Vérifie `queteCooldownFin` → si en cooldown, annonce les minutes restantes
+   (message différent selon la cause : défaite → « Pointu te soigne… », `!abandon` → « tu as abandonné… »)
+   **Délai de défaite écoulé** (`soinDefaite == true`) → Pointu soigne : PV et mana (effectif, objets inclus)
+   au max, `soinDefaite` repasse à `false`, message 🐢, puis la quête démarre normalement.
+   Ne consomme pas le cooldown de `!repos`. C'est le rôle lore du fragment : « être soigné après une défaite ».
 2. Vérifie `classeChoisie`, `enCombat`
 3. Si `enQuete == true` :
    - Si `enRencontre == true` → "tu es en pleine rencontre !"
@@ -930,6 +934,8 @@ seul il combat à −8 points des autres classes, accompagné il est à parité.
 - **Échec vs faible/moyen** → perte = `pvPerdus * combat_pv_perte_echec_facteur` ; survie si PV>0 (quête reprend),
   sinon effondrement + cooldown. `combatsPerdus++`.
 - **Échec vs fort/miniboss** → **KO** : `pvActuels=0`, `enQuete=false`, `queteCooldownFin`, `combatsPerdus++`, compagnon perdu.
+- Toute défaite avec cooldown pose `soinDefaite = true` (via `EnsureChamp`) : le joueur sera soigné au premier
+  `!quete` après le délai. 🐛 Avant le 27/10/2026, le message promettait un « repos dans l'Antre » qui n'existait pas.
 ```
 Trigger : Command Triggered → !combat
 ```
