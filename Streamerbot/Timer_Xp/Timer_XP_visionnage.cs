@@ -7,6 +7,7 @@ public class CPHInline
 {
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
     private const string CONFIG_LEVEL    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_level.json";
+    private const string CONFIG_ITEMS    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_items.json";
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
 
     public bool Execute()
@@ -21,6 +22,7 @@ public class CPHInline
 
         string[] fichiers  = Directory.GetFiles(DOSSIER_JOUEURS, "*.json");
         string   cfgLevel  = File.ReadAllText(CONFIG_LEVEL);
+        string   cfgItems  = File.ReadAllText(CONFIG_ITEMS);
 
         foreach (string cheminFichier in fichiers)
         {
@@ -58,7 +60,7 @@ public class CPHInline
                     json = ModifierValeur(json, "pvActuels", Math.Min(pvActuels + regenPV, pvMax).ToString(), false);
 
                 int manaActuels = int.Parse(LireValeur(json, "manaActuels"));
-                int manaMax     = int.Parse(LireValeur(json, "manaMax"));
+                int manaMax     = int.Parse(LireValeur(json, "manaMax")) + GetBonusItems(json, cfgItems, "manaBonus");
                 if (manaActuels < manaMax)
                     json = ModifierValeur(json, "manaActuels", Math.Min(manaActuels + regenMana, manaMax).ToString(), false);
             }
@@ -152,5 +154,19 @@ public class CPHInline
         string ancienne = json.Substring(posDebut, posFin - posDebut);
         string nouvelle = estTexte ? "\"" + val + "\"" : val;
         return json.Substring(0, posDebut) + nouvelle + json.Substring(posDebut + ancienne.Length);
+    }
+
+    // Bonus d'une stat cumulé sur les 3 objets équipés (ex. manaBonus de l'Écaille).
+    private int GetBonusItems(string json, string cfgItems, string stat)
+    {
+        string[] slots = { "armeEquipee", "armureEquipee", "accessoireEquipe" };
+        int total = 0;
+        foreach (string slot in slots)
+        {
+            string item = LireValeur(json, slot);
+            if (item != "" && item != "0")
+                total += int.Parse(LireValeur(cfgItems, item + "_" + stat));
+        }
+        return total;
     }
 }

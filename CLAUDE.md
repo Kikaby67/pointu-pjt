@@ -1047,7 +1047,9 @@ Trigger : Command Triggered → !vendre
 
 ### `!utiliser [nom_item]` → `Commandes/Utiliser/commande_utiliser.cs`
 Consomme un item du sac (`_slot == "consommable"`).
-- Lit `_pvSoin` et `_manaSoin` depuis config, applique plafonnés à pvMax/manaMax
+- Lit `_pvSoin` et `_manaSoin` depuis config, applique plafonnés à pvMax / **mana max effectif**
+  (`manaMax` du profil + `manaBonus` des objets — même plafond pour `!repos`, l'alcôve et la régén du timer).
+  🐛 corrigé le 27/10/2026 : le plafond ignorait les objets, une Potion laissait à 5/10 avec l'Écaille.
 - Retire **un seul** exemplaire du sac (flag `dejaRetire`)
 - Fonctionne en et hors combat
 - Cache le message mana si `manaMax == 0`

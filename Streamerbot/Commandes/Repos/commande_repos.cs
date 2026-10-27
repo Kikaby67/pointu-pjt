@@ -6,6 +6,7 @@ using System.IO;
 public class CPHInline
 {
     private const string DOSSIER_JOUEURS = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\joueurs";
+    private const string CONFIG_ITEMS    = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_items.json";
     private const string CONFIG_GLOBAL   = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
 
     public bool Execute()
@@ -56,10 +57,12 @@ public class CPHInline
         int pvActuels   = int.Parse(LireValeur(json, "pvActuels"));
         int pvMax       = int.Parse(LireValeur(json, "pvMax"));
         int manaActuels = int.Parse(LireValeur(json, "manaActuels"));
-        int manaMax     = int.Parse(LireValeur(json, "manaMax"));
+        // Mana max EFFECTIF : celui du profil + les objets (même calcul que !profil)
+        int manaMax     = int.Parse(LireValeur(json, "manaMax"))
+                        + GetBonusItems(json, File.ReadAllText(CONFIG_ITEMS), "manaBonus");
 
         int pvRestores   = pvMax   - pvActuels;
-        int manaRestores = manaMax - manaActuels;
+        int manaRestores = Math.Max(0, manaMax - manaActuels);
 
         json = EnsureChamp(json, "reposCooldownFin", "0", false);
         json = ModifierValeur(json, "pvActuels",        pvMax.ToString(),                false);
@@ -106,5 +109,19 @@ public class CPHInline
         string ancienne = json.Substring(posDebut, posFin - posDebut);
         string nouvelle = estTexte ? "\"" + val + "\"" : val;
         return json.Substring(0, posDebut) + nouvelle + json.Substring(posDebut + ancienne.Length);
+    }
+
+    // Bonus d'une stat cumulé sur les 3 objets équipés (ex. manaBonus de l'Écaille).
+    private int GetBonusItems(string json, string cfgItems, string stat)
+    {
+        string[] slots = { "armeEquipee", "armureEquipee", "accessoireEquipe" };
+        int total = 0;
+        foreach (string slot in slots)
+        {
+            string item = LireValeur(json, slot);
+            if (item != "" && item != "0")
+                total += int.Parse(LireValeur(cfgItems, item + "_" + stat));
+        }
+        return total;
     }
 }

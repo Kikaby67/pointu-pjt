@@ -165,7 +165,8 @@ public class CPHInline
             int pvActuels   = int.Parse(LireValeur(json, "pvActuels"));
             int pvMax       = int.Parse(LireValeur(json, "pvMax"));
             int manaActuels = int.Parse(LireValeur(json, "manaActuels"));
-            int manaMax     = int.Parse(LireValeur(json, "manaMax"));
+            int manaMax     = int.Parse(LireValeur(json, "manaMax"))
+                            + GetBonusItems(json, File.ReadAllText(CONFIG_ITEMS), "manaBonus");
             int pvSoin      = pvMax - pvActuels;
             int manaSoin    = manaMax - manaActuels;
             json     = ModifierValeur(json, "pvActuels",   pvMax.ToString(),   false);

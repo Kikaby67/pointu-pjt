@@ -71,7 +71,8 @@ public class CPHInline
         int pvActuels   = int.Parse(LireValeur(json, "pvActuels"));
         int pvMax       = int.Parse(LireValeur(json, "pvMax"));
         int manaActuels = int.Parse(LireValeur(json, "manaActuels"));
-        int manaMax     = int.Parse(LireValeur(json, "manaMax"));
+        // Mana max EFFECTIF : celui du profil + les objets (même calcul que !profil)
+        int manaMax     = int.Parse(LireValeur(json, "manaMax")) + GetBonusItems(json, cfgItems, "manaBonus");
 
         int pvRestores   = Math.Min(pvSoin,   pvMax   - pvActuels);
         int manaRestores = Math.Min(manaSoin, manaMax - manaActuels);
@@ -160,5 +161,19 @@ public class CPHInline
                 sb.Append(c);
         }
         return sb.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+    }
+
+    // Bonus d'une stat cumulé sur les 3 objets équipés (ex. manaBonus de l'Écaille).
+    private int GetBonusItems(string json, string cfgItems, string stat)
+    {
+        string[] slots = { "armeEquipee", "armureEquipee", "accessoireEquipe" };
+        int total = 0;
+        foreach (string slot in slots)
+        {
+            string item = LireValeur(json, slot);
+            if (item != "" && item != "0")
+                total += int.Parse(LireValeur(cfgItems, item + "_" + stat));
+        }
+        return total;
     }
 }
