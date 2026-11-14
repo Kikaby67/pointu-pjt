@@ -1134,6 +1134,11 @@ Répondent aux offres interactives en quête. Vérifient `offreEnAttente` et `of
   (un item équipé volé est retiré de son slot ; les deux rolls peuvent arriver ensemble).
 - `!refuser` → `vieux_sage_chance_combat`% → **pose une rencontre** contre le `Vieux-Sage`
   (3 choix `!combat`/`!discuter`/`!fuir` + `rencontreExpire`) ; sinon il disparaît sans effet.
+- **Objet volé récupérable** (14/11/2026) : chaque vol est noté dans `objetsVolesSage` (CSV `objet@origine`,
+  origine = `sac` ou le slot, via `EnsureChamp`) et le message invite à le battre. Quand il attaque au
+  `!refuser`, le message rappelle ce qu'il porte. **Victoire `!combat` contre le `Vieux-Sage`** → il rend le
+  **dernier** objet volé : dans son slot d'origine s'il est libre, sinon dans le sac ; sac plein → il le garde
+  encore, rien n'est perdu (`RendreObjetVole`, `commande_combat.cs`). `!discuter` ne rend rien.
 
 **Marchand (`offreEnAttente == "marchand_soin"`) :**
 - `!accepter` → soigne les PV (`offreValeur`, plafonné à pvMax) · `!refuser` → annule · `!acheter` → Potion (**choix séparé**).

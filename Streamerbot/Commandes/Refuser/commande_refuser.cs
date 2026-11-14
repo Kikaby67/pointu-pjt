@@ -91,7 +91,18 @@ public class CPHInline
                 json = ModifierValeur(json, "rencontreExpire", (maintenant + expSecs).ToString(),   false);
 
                 File.WriteAllText(cheminFichier, json);
-                CPH.SendMessage(nomJoueur + ", tu refuses le marché — le Vieux Sage se lève, furieux ! Tape !combat pour te battre, !discuter afin de t'en sortir ou !fuir pour t'échapper. (" + (expSecs / 60) + " min)");
+
+                // S'il porte un objet volé à ce joueur, on le dit : c'est l'occasion de le reprendre
+                string voles   = LireValeurString(json, "objetsVolesSage");
+                string enjeu   = "";
+                if (voles != "")
+                {
+                    string[] liste = voles.Split(',');
+                    string dernier = liste[liste.Length - 1];
+                    int    at      = dernier.LastIndexOf('@');
+                    enjeu = " 🎒 Il porte encore ton " + (at > 0 ? dernier.Substring(0, at) : dernier) + " : bats-le pour le reprendre !";
+                }
+                CPH.SendMessage(nomJoueur + ", tu refuses le marché — le Vieux Sage se lève, furieux ! Tape !combat pour te battre, !discuter afin de t'en sortir ou !fuir pour t'échapper. (" + (expSecs / 60) + " min)" + enjeu);
                 return true;
             }
             else
@@ -163,5 +174,16 @@ public class CPHInline
         string ancienne = json.Substring(posDebut, posFin - posDebut);
         string nouvelle = estTexte ? "\"" + val + "\"" : val;
         return json.Substring(0, posDebut) + nouvelle + json.Substring(posDebut + ancienne.Length);
+    }
+
+    private string LireValeurString(string json, string cle)
+    {
+        string marqueur = "\"" + cle + "\": \"";
+        int posDebut    = json.IndexOf(marqueur);
+        if (posDebut == -1) return "";
+        posDebut       += marqueur.Length;
+        int posFin      = json.IndexOf("\"", posDebut);
+        if (posFin == -1) return "";
+        return json.Substring(posDebut, posFin - posDebut);
     }
 }

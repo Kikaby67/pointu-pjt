@@ -148,8 +148,15 @@ public class CPHInline
                         json = ModifierValeur(json, source, "", true); // vide le slot équipé
                     }
 
+                    // Le butin reste sur le profil : battre le Vieux-Sage en combat le rend (commande_combat.cs).
+                    // Format CSV « objet@origine » (origine = "sac" ou le slot d'où il a été arraché).
+                    json = EnsureChamp(json, "objetsVolesSage", "", true);
+                    string voles = LireValeurString(json, "objetsVolesSage");
+                    json = ModifierValeurString(json, "objetsVolesSage", (voles == "" ? "" : voles + ",") + perdu + "@" + source);
+
                     msgFinal += (msgFinal != "" ? " Mais" : nomJoueur + ", tu acceptes le marché —")
-                              + " le Vieux Sage s'empare de " + perdu + (source != "sac" ? " (équipé)" : "") + " en guise de paiement...";
+                              + " le Vieux Sage s'empare de " + perdu + (source != "sac" ? " (équipé)" : "") + " en guise de paiement..."
+                              + " Bats-le en combat s'il te recroise : il devra te le rendre.";
                 }
             }
             if (!gagne && !perd)

@@ -112,6 +112,9 @@ public class CPHInline
                 }
             }
 
+            // Le Vieux-Sage vaincu rend le dernier objet qu'il a volé à ce joueur (commande_accepter.cs)
+            if (ennemNom == "Vieux-Sage") lootMsg += RendreObjetVole(ref json, cfgG);
+
             // La résolution est une réponse à une commande tapée : c'est ici que le lore
             // s'exprime sans coûter un message de plus au chat.
             string baseMsg = "⚔️ " + TexteLore(ennemNom, "victoire", rng) + " " + nomJoueur + compTxt + frappesTxt
@@ -169,6 +172,38 @@ public class CPHInline
                 + ") mais s'en sort. Sa quête reprend.");
         }
         return true;
+    }
+
+    // Rend le dernier objet de « objetsVolesSage » : dans son slot d'origine s'il est libre,
+    // sinon dans le sac s'il reste de la place. Sac plein : le Sage le garde encore, rien n'est perdu.
+    private string RendreObjetVole(ref string json, string cfgG)
+    {
+        string voles = LireValeurString(json, "objetsVolesSage");
+        if (voles == "") return "";
+
+        string[] liste   = voles.Split(',');
+        string   entree  = liste[liste.Length - 1];
+        int      at      = entree.LastIndexOf('@');
+        string   objet   = at > 0 ? entree.Substring(0, at) : entree;
+        string   origine = at > 0 ? entree.Substring(at + 1) : "sac";
+
+        string slotLibre = (origine != "sac" && (LireValeur(json, origine) == "" || LireValeur(json, origine) == "0"))
+                           ? origine : "";
+        if (slotLibre != "")
+        {
+            json = ModifierValeur(json, slotLibre, objet, true);
+        }
+        else
+        {
+            string inventaire = LireValeurString(json, "inventaire");
+            int nbItems = inventaire == "" ? 0 : inventaire.Split(',').Length;
+            if (nbItems >= int.Parse(LireValeur(cfgG, "max_sac")))
+                return " 🎒 Le Vieux-Sage voulait te rendre " + objet + ", mais ton sac est plein : il le garde encore.";
+            json = ModifierValeurString(json, "inventaire", inventaire == "" ? objet : inventaire + "," + objet);
+        }
+
+        json = ModifierValeurString(json, "objetsVolesSage", string.Join(",", liste, 0, liste.Length - 1));
+        return " 🎒 Vaincu, le Vieux-Sage te rend " + objet + (slotLibre != "" ? " (rééquipé)" : " (dans ton sac)") + " !";
     }
 
     // Reprend la quête : ferme la rencontre et comptabilise la pause
