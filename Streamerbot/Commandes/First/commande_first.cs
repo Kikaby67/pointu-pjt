@@ -1,6 +1,6 @@
 // sb-action: !first
 // sb-subaction-id: 532add11-7012-440e-87f4-7a86bd1dc357
-// sb-group: Joueurs
+// sb-group: Command chat
 // sb-trigger: command !first
 using System;
 using System.IO;
