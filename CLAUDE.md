@@ -206,6 +206,7 @@ moderation_timeout_secondes (300) ← durée du timeout manuel (hors jeu RPG, cf
 wizz_duree_ms (900) · wizz_intervalle_ms (30) · wizz_amplitude_px (18) · wizz_volume_pct (80)
 wizz_scene ("" = scène en direct) · wizz_source ("" = toutes les sources) ← reward 📳 Wizz (hors jeu RPG)
 dramatique_source (Cam 4k) · dramatique_duree_secondes (20, si pas de musique) · dramatique_volume_pct (50) ← reward 🎭
+son_obs_scene (Reward) · son_obs_attente_max_secondes (300) ← scène OBS des sources média des rewards + attente max de fin de son
 
 rencontre_taux_ennemi (40)     ← % de chance de rencontre ennemie par check
 rencontre_taux_allie (30)      ← % de chance de rencontre alliée (30% = rien)
@@ -1218,6 +1219,11 @@ Trigger : Channel Point Reward (un fichier par reward)
 **`wizz.cs` → `Reward/Wizz/`** — le wizz de MSN. **Aucun profil lu ni écrit.**
 - Message chat `📳 {pseudo} a envoyé un Wizz !` + son `C:\Users\Florian\Desktop\Stream\Animation\Wizz\wizz.mp3`
   (hors repo ; fichier absent = log, le tremblement a lieu quand même).
+- **Le son est joué par OBS**, pas par `CPH.PlaySound` (15/11/2026) : `PlaySound` sort sur l'audio de Streamer.bot,
+  que le stream ne capte pas — les viewers n'entendaient rien. Source média cachée `Wizz_son` dans la scène
+  imbriquée `son_obs_scene` (« Reward », comme Slap/NUL), **créée au 1er passage** en *Monitoring et sortie* ;
+  l'afficher la joue, elle est recachée à la fin du son. Fichier et volume réappliqués à chaque passage.
+  Si OBS ne lance pas la lecture en 1,5 s (« Reward » absente de la scène en direct) → repli `PlaySound` + log.
 - Tremblement via `CPH.ObsSendRaw` : relit la position de chaque source de la scène, applique un décalage
   aléatoire **amorti** toutes les `wizz_intervalle_ms`, puis **remet chaque source à sa position d'origine**
   dans un `finally`. Seules les sources de 1er niveau bougent (un groupe bouge en bloc).
@@ -1234,6 +1240,8 @@ Trigger : Channel Point Reward → 📳 Wizz (à attacher à la main dans SB)
   on peut retoucher le sien dans OBS, le code ne réécrit pas ses réglages.
 - Musique `C:\Users\Florian\Desktop\Stream\Animation\Dramatique\triste.mp3` (hors repo), lue en **bloquant** :
   l'effet dure exactement le morceau. Choisir un extrait court (15-30 s). Sans fichier : `dramatique_duree_secondes`.
+- Jouée **par OBS** via la source `Dramatique_son` (même mécanisme et même repli que le Wizz) : le code attend
+  la fin de la lecture (`GetMediaInputStatus`, plafond `son_obs_attente_max_secondes`) avant de rendre les couleurs.
 - Filtre désactivé dans un `finally` ; `lock` statique pour que deux redemptions s'enchaînent sans se couper.
 ```
 Trigger : Channel Point Reward → 🎭 Moment dramatique (à attacher à la main dans SB)

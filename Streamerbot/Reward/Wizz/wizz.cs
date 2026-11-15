@@ -10,10 +10,12 @@ using System.Globalization;
 // Comme le wizz de MSN : un son + l'écran du stream qui tremble ~1 seconde.
 // Le tremblement décale la position de chaque source de la scène OBS via
 // obs-websocket (SetSceneItemTransform), puis remet TOUT à sa place d'origine.
+// Le son est joué PAR OBS (source média cachée), sinon le stream ne l'entend pas.
 public class CPHInline
 {
     private const string CONFIG_GLOBAL = @"C:\Users\Florian\pjt\Pointu-PJT\Donnees\config_global.json";
     private const string FICHIER_SON   = @"C:\Users\Florian\Desktop\Stream\Animation\Wizz\wizz.mp3";
+    private const string NOM_SOURCE_SON = "Wizz_son";   // source média OBS, dans la scène des sons
 
     // Deux wizz simultanés liraient comme « position d'origine » une position déjà
     // décalée par le premier, et la scène resterait de travers. On les sérialise.
@@ -31,25 +33,109 @@ public class CPHInline
         string scene   = LireValeurString(cfg, "wizz_scene");    // vide = scène en direct
         string source  = LireValeurString(cfg, "wizz_source");   // vide = toutes les sources
 
+        string sceneSon  = LireValeurString(cfg, "son_obs_scene");
+        if (sceneSon == "") sceneSon = "Reward";
+        int attenteMaxMs = LireConfigInt(cfg, "son_obs_attente_max_secondes", 300) * 1000;
+
         CPH.SendMessage("📳 " + user + " a envoyé un Wizz !");
 
-        if (File.Exists(FICHIER_SON))
-            CPH.PlaySound(FICHIER_SON, volumePct / 100f, false);   // false : le son joue pendant le tremblement
-        else
-            CPH.LogWarn("[Wizz] Son introuvable : " + FICHIER_SON);
+        if (!File.Exists(FICHIER_SON)) CPH.LogWarn("[Wizz] Son introuvable : " + FICHIER_SON);
 
         if (!CPH.ObsIsConnected(0))
         {
-            CPH.LogWarn("[Wizz] OBS non connecté à Streamer.bot — pas de tremblement.");
+            CPH.LogWarn("[Wizz] OBS non connecté à Streamer.bot — pas de tremblement, son local seulement.");
+            if (File.Exists(FICHIER_SON)) CPH.PlaySound(FICHIER_SON, volumePct / 100f, false);
             return true;
         }
 
         lock (VERROU)
         {
-            if (scene == "") scene = CPH.ObsGetCurrentScene(0);
-            Secouer(scene, source, dureeMs, intervalle, amplitude);
+            // Le son démarre AVANT le tremblement, pour qu'ils arrivent ensemble à l'écran
+            int idSon = File.Exists(FICHIER_SON) ? DemarrerSonObs(sceneSon, NOM_SOURCE_SON, FICHIER_SON, volumePct) : -1;
+            if (idSon < 0 && File.Exists(FICHIER_SON))
+            {
+                CPH.LogWarn("[Wizz] OBS n'a pas joué le son (la scène « " + sceneSon + " » est-elle dans la scène en direct ?) — son local seulement.");
+                CPH.PlaySound(FICHIER_SON, volumePct / 100f, false);
+            }
+            try
+            {
+                if (scene == "") scene = CPH.ObsGetCurrentScene(0);
+                Secouer(scene, source, dureeMs, intervalle, amplitude);
+            }
+            finally
+            {
+                if (idSon >= 0) FinirSonObs(sceneSon, idSon, NOM_SOURCE_SON, attenteMaxMs);
+            }
         }
         return true;
+    }
+
+    // ---------------------------------------------------------------- son via OBS
+    // CPH.PlaySound joue sur la sortie audio de Streamer.bot, que le stream ne capte pas :
+    // les viewers n'entendaient rien. Le son passe donc par une source média OBS cachée dans
+    // la scène imbriquée « Reward », comme Slap ou NUL : l'afficher la joue, et
+    // « Monitoring et sortie » l'envoie au stream ET au casque. Créée au 1er passage si absente.
+    // Renvoie l'id de l'élément de scène, ou -1 si OBS n'a rien joué.
+    private int DemarrerSonObs(string scene, string nom, string fichier, int volumePct)
+    {
+        string sceneJson  = "\"sceneName\":\"" + Echapper(scene) + "\"";
+        string sourceJson = "\"sourceName\":\"" + Echapper(nom) + "\"";
+        string inputJson  = "\"inputName\":\"" + Echapper(nom) + "\"";
+        string fichierObs = Echapper(fichier.Replace('\\', '/'));
+        double id;
+
+        if (!LireNombre(CPH.ObsSendRaw("GetSceneItemId", "{" + sceneJson + "," + sourceJson + "}", 0), "sceneItemId", 0, out id))
+        {
+            string rep = CPH.ObsSendRaw("CreateInput", "{" + sceneJson + "," + inputJson
+                + ",\"inputKind\":\"ffmpeg_source\",\"inputSettings\":{\"local_file\":\"" + fichierObs + "\"}"
+                + ",\"sceneItemEnabled\":false}", 0);
+            // Le nom existe déjà ailleurs dans OBS : on l'ajoute simplement à la scène des sons
+            if (!LireNombre(rep, "sceneItemId", 0, out id))
+                rep = CPH.ObsSendRaw("CreateSceneItem", "{" + sceneJson + "," + sourceJson + ",\"sceneItemEnabled\":false}", 0);
+            if (!LireNombre(rep, "sceneItemId", 0, out id)) return -1;
+            CPH.ObsSendRaw("SetInputAudioMonitorType", "{" + inputJson + ",\"monitorType\":\"OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT\"}", 0);
+        }
+
+        // Fichier et volume réappliqués à chaque passage : changer la config suffit
+        CPH.ObsSendRaw("SetInputSettings", "{" + inputJson + ",\"inputSettings\":{\"local_file\":\"" + fichierObs + "\"}}", 0);
+        CPH.ObsSendRaw("SetInputVolume", "{" + inputJson + ",\"inputVolumeMul\":"
+            + (volumePct / 100.0).ToString(CultureInfo.InvariantCulture) + "}", 0);
+
+        AfficherSource(scene, (int)id, false);   // repart de zéro si un passage précédent est resté affiché
+        AfficherSource(scene, (int)id, true);
+
+        // Si « Reward » n'est pas dans la scène en direct, OBS ne lance jamais la lecture
+        for (int t = 0; t < 15; t++)
+        {
+            string etat = EtatMedia(nom);
+            if (etat.Contains("PLAYING") || etat.Contains("ENDED")) return (int)id;
+            CPH.Wait(100);
+        }
+        AfficherSource(scene, (int)id, false);
+        return -1;
+    }
+
+    // Attend la fin du son (plafonné), puis recache la source pour le prochain passage.
+    private void FinirSonObs(string scene, int id, string nom, int attenteMaxMs)
+    {
+        for (int ms = 0; ms < attenteMaxMs; ms += 200)
+        {
+            string etat = EtatMedia(nom);
+            if (!etat.Contains("PLAYING") && !etat.Contains("OPENING") && !etat.Contains("BUFFERING")) break;
+            CPH.Wait(200);
+        }
+        AfficherSource(scene, id, false);
+    }
+
+    private string EtatMedia(string nom)
+    {
+        return CPH.ObsSendRaw("GetMediaInputStatus", "{\"inputName\":\"" + Echapper(nom) + "\"}", 0) ?? "";
+    }
+
+    private void AfficherSource(string scene, int id, bool visible)
+    {
+        CPH.ObsSendRaw("SetSceneItemEnabled", "{\"sceneName\":\"" + Echapper(scene) + "\",\"sceneItemId\":" + id
+            + ",\"sceneItemEnabled\":" + (visible ? "true" : "false") + "}", 0);
     }
 
     private void Secouer(string scene, string source, int dureeMs, int intervalle, int amplitude)

@@ -1,7 +1,7 @@
 {
   "broadcaster": "kikabygaming",
 
-  "max_sac": 8,
+  "max_sac": 16,
 
   "repos_cooldown_secondes": 1800,
 
@@ -157,5 +157,8 @@
 
   "dramatique_source": "Cam 4k",
   "dramatique_duree_secondes": 20,
-  "dramatique_volume_pct": 50
+  "dramatique_volume_pct": 50,
+
+  "son_obs_scene": "Reward",
+  "son_obs_attente_max_secondes": 300
 }
