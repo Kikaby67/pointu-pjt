@@ -42,6 +42,7 @@ Pointu-PJT/
 │   │   ├── Refuser/             # !refuser
 │   │   ├── OuvrirDesert/        # !ouvrirdesert (broadcaster — filet si le reward n'est pas échangé)
 │   │   ├── NonMerci/            # !nonmerci (refus du fragment → proposition boss)
+│   │   ├── First/               # !first + reward 🥇 First (hors jeu RPG)
 │   │   └── Secret/              # !racine (commande secrète)
 │   ├── quetes/
 │   │   ├── quest_system.cs      # !quete (lancer / consulter)
@@ -692,6 +693,16 @@ lancé pour rire enverrait un MP depuis le compte broadcaster à un viewer qui n
 - Distinction faite via `args["command"]` (le mot réellement tapé).
 ```
 Trigger : Command Triggered → !nonmerci  +  !no / !non / !noo / !nooo (trigger de la commande son)
+```
+
+### `!first` → `Commandes/First/commande_first.cs` (hors jeu RPG)
+Le premier à taper `!first` (ou à échanger le reward 🥇 First, 1 point) est sacré premier·e — Pointu
+« applaudit lentement… très lentement… ». Les suivants reçoivent un message moqueur qui nomme le premier.
+- Aucun profil lu ni écrit. Premier retenu dans `Donnees/first.txt` (`timestamp|pseudo`, **git-ignoré**).
+- Le titre expire après `first_fenetre_secondes` (config_global, 43 200 s = 12 h) → un stream = un premier.
+- `lock` statique : deux `!first` simultanés ne font pas deux premiers.
+```
+Trigger : Command Triggered → !first  +  Channel Point Reward → 🥇 First (à attacher à la main dans SB)
 ```
 
 ### `!rejoindre` → `Commande_rejoindre.cs`

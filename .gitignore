@@ -30,6 +30,7 @@ Donnees/config_insultes.json
 # Journal ecrit par !nonmerci, sert a recontacter les viewers a la main.
 Donnees/refus_fragment.txt
 Donnees/offre_fragment.txt
+Donnees/first.txt
 
 # ─── Modération : logs de chat nominatifs (données de tiers) ───
 # Le repo est PUBLIC. Les logs vivent HORS du repo (Desktop\Stream\Moderation),

@@ -160,5 +160,7 @@
   "dramatique_volume_pct": 50,
 
   "son_obs_scene": "Reward",
-  "son_obs_attente_max_secondes": 300
+  "son_obs_attente_max_secondes": 300,
+
+  "first_fenetre_secondes": 43200
 }
